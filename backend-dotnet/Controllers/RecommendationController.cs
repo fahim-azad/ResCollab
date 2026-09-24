@@ -125,6 +125,109 @@ namespace ResCollab.Api.Controllers
             return Ok(filtered);
         }
 
-        
+        public class TeammateRecommendationDto
+        {
+            public int UserId { get; set; }
+            public string FullName { get; set; } = string.Empty;
+            public string? Department { get; set; }
+            public string? University { get; set; }
+            public List<string> MatchedInterests { get; set; } = new List<string>();
+            public List<string> Skills { get; set; } = new List<string>();
+            public int MatchScore { get; set; }
+            public string? Bio { get; set; }
+        }
+
+        [HttpGet("teammates")]
+        public async Task<IActionResult> GetTeammates()
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var currentUser = await _context.Users
+                .Include(u => u.Profile)
+                .FirstOrDefaultAsync(u => u.Id == userId);
+
+            if (currentUser == null || currentUser.Profile == null)
+            {
+                return NotFound("Profile not found.");
+            }
+
+            var currentProfile = currentUser.Profile;
+
+            // Fetch all other students
+            var students = await _context.Users
+                .Include(u => u.Profile)
+                .Where(u => u.Id != userId && u.Role == "Student")
+                .Where(u => u.Profile != null)
+                .ToListAsync();
+
+            var recommendations = new List<TeammateRecommendationDto>();
+
+            var currentInterests = string.IsNullOrWhiteSpace(currentProfile.Interests) 
+                ? new List<string>() 
+                : currentProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
+
+            foreach (var student in students)
+            {
+                var studentProfile = student.Profile!;
+                int score = 0;
+                var matchedInterests = new List<string>();
+
+                // Rule 1: Interests match (+10 points per keyword)
+                if (!string.IsNullOrWhiteSpace(studentProfile.Interests))
+                {
+                    var studentInterests = studentProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
+                    foreach (var cInt in currentInterests)
+                    {
+                        if (studentInterests.Contains(cInt) && !string.IsNullOrWhiteSpace(cInt))
+                        {
+                            score += 10;
+                            matchedInterests.Add(cInt);
+                        }
+                    }
+                }
+
+                // Rule 2: University match (+5 points)
+                if (!string.IsNullOrWhiteSpace(currentProfile.University) && 
+                    currentProfile.University.Equals(studentProfile.University, StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 5;
+                }
+
+                // Rule 3: Department match (+2 points)
+                if (!string.IsNullOrWhiteSpace(currentProfile.Department) && 
+                    currentProfile.Department.Equals(studentProfile.Department, StringComparison.OrdinalIgnoreCase))
+                {
+                    score += 2;
+                }
+
+                var skillsList = string.IsNullOrWhiteSpace(studentProfile.Skills) 
+                    ? new List<string>() 
+                    : studentProfile.Skills.Split(',').Select(s => s.Trim()).ToList();
+
+                recommendations.Add(new TeammateRecommendationDto
+                {
+                    UserId = student.Id,
+                    FullName = student.FullName,
+                    Department = studentProfile.Department,
+                    University = studentProfile.University,
+                    MatchedInterests = matchedInterests,
+                    Skills = skillsList,
+                    MatchScore = score,
+                    Bio = studentProfile.Bio
+                });
+            }
+
+            var sortedRecommendations = recommendations.OrderByDescending(r => r.MatchScore).ToList();
+            
+            var filtered = sortedRecommendations.Where(r => r.MatchScore > 0).ToList();
+
+            if (!filtered.Any())
+            {
+                filtered = sortedRecommendations.Take(10).ToList();
+            }
+
+            return Ok(filtered);
+        }
     }
 }
