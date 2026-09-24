@@ -1,20 +1,20 @@
 {
   "format": 1,
   "restore": {
-    "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj": {}
+    "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj": {}
   },
   "projects": {
-    "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj": {
+    "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj": {
       "version": "1.0.0",
       "restore": {
-        "projectUniqueName": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
+        "projectUniqueName": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
         "projectName": "ResCollab.Api",
-        "projectPath": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
-        "packagesPath": "C:\\Users\\13135\\.nuget\\packages\\",
-        "outputPath": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\obj\\",
+        "projectPath": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
+        "packagesPath": "C:\\Users\\azadf\\.nuget\\packages\\",
+        "outputPath": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\obj\\",
         "projectStyle": "PackageReference",
         "configFilePaths": [
-          "C:\\Users\\13135\\AppData\\Roaming\\NuGet\\NuGet.Config"
+          "C:\\Users\\azadf\\AppData\\Roaming\\NuGet\\NuGet.Config"
         ],
         "originalTargetFrameworks": [
           "net8.0"
@@ -24,7 +24,6 @@
         },
         "frameworks": {
           "net8.0": {
-            "framework": "net8.0",
             "targetAlias": "net8.0",
             "projectReferences": {}
           }
@@ -38,12 +37,10 @@
           "enableAudit": "true",
           "auditLevel": "low",
           "auditMode": "direct"
-        },
-        "SdkAnalysisLevel": "10.0.400"
+        }
       },
       "frameworks": {
         "net8.0": {
-          "framework": "net8.0",
           "targetAlias": "net8.0",
           "dependencies": {
             "BCrypt.Net-Next": {
@@ -78,24 +75,6 @@
           ],
           "assetTargetFallback": true,
           "warn": true,
-          "downloadDependencies": [
-            {
-              "name": "Microsoft.AspNetCore.App.Ref",
-              "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Host.win-x64",
-              "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.NETCore.App.Ref",
-              "version": "[8.0.31, 8.0.31]"
-            },
-            {
-              "name": "Microsoft.WindowsDesktop.App.Ref",
-              "version": "[8.0.31, 8.0.31]"
-            }
-          ],
           "frameworkReferences": {
             "Microsoft.AspNetCore.App": {
               "privateAssets": "none"
@@ -104,7 +83,7 @@
               "privateAssets": "all"
             }
           },
-          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json"
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.425/PortableRuntimeIdentifierGraph.json"
         }
       }
     }

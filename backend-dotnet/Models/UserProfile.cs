@@ -29,5 +29,7 @@ namespace ResCollab.Api.Models
         public string? Skills { get; set; }
         
         public string? Interests { get; set; }
+
+        public bool IsAcceptingStudents { get; set; } = true;
     }
 }
