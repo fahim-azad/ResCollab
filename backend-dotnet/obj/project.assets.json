@@ -4175,19 +4175,19 @@
     ]
   },
   "packageFolders": {
-    "/Users/adibanoor/.nuget/packages/": {}
+    "C:\\Users\\13135\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/adibanoor/Desktop/Software Engineering lab project/ResCollab/backend-dotnet/ResCollab.Api.csproj",
+      "projectUniqueName": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
       "projectName": "ResCollab.Api",
-      "projectPath": "/Users/adibanoor/Desktop/Software Engineering lab project/ResCollab/backend-dotnet/ResCollab.Api.csproj",
-      "packagesPath": "/Users/adibanoor/.nuget/packages/",
-      "outputPath": "/Users/adibanoor/Desktop/Software Engineering lab project/ResCollab/backend-dotnet/obj/",
+      "projectPath": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
+      "packagesPath": "C:\\Users\\13135\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\13135\\Documents\\Software Engineerig lab project\\ResCollab\\backend-dotnet\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/adibanoor/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\13135\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
@@ -4254,15 +4254,19 @@
         "downloadDependencies": [
           {
             "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.30, 8.0.30]"
+            "version": "[8.0.31, 8.0.31]"
           },
           {
-            "name": "Microsoft.NETCore.App.Host.osx-x64",
-            "version": "[8.0.30, 8.0.30]"
+            "name": "Microsoft.NETCore.App.Host.win-x64",
+            "version": "[8.0.31, 8.0.31]"
           },
           {
             "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.30, 8.0.30]"
+            "version": "[8.0.31, 8.0.31]"
+          },
+          {
+            "name": "Microsoft.WindowsDesktop.App.Ref",
+            "version": "[8.0.31, 8.0.31]"
           }
         ],
         "frameworkReferences": {
@@ -4273,7 +4277,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/x64/sdk/10.0.400/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.401/PortableRuntimeIdentifierGraph.json"
       }
     }
   }
