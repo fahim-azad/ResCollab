@@ -13,6 +13,11 @@ namespace ResCollab.Api.Data
         public DbSet<UserProfile> UserProfiles { get; set; }
         public DbSet<ResearchResource> ResearchResources { get; set; }
         public DbSet<ResourceTag> ResourceTags { get; set; }
+        
+        public DbSet<ResearchIdea> ResearchIdeas { get; set; }
+        public DbSet<IdeaApplication> IdeaApplications { get; set; }
+        
+        public DbSet<OpenProject> OpenProjects { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -30,6 +35,27 @@ namespace ResCollab.Api.Data
                 .HasMany(r => r.Tags)
                 .WithOne(t => t.ResearchResource)
                 .HasForeignKey(t => t.ResearchResourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // One-to-Many: ResearchIdea <-> IdeaApplications
+            modelBuilder.Entity<ResearchIdea>()
+                .HasMany(i => i.Applications)
+                .WithOne(a => a.Idea)
+                .HasForeignKey(a => a.IdeaId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Ensure no circular cascade delete for Application -> User
+            modelBuilder.Entity<IdeaApplication>()
+                .HasOne(a => a.Applicant)
+                .WithMany()
+                .HasForeignKey(a => a.ApplicantId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // One-to-Many: User (Supervisor) <-> OpenProject
+            modelBuilder.Entity<OpenProject>()
+                .HasOne(p => p.Supervisor)
+                .WithMany()
+                .HasForeignKey(p => p.SupervisorId)
                 .OnDelete(DeleteBehavior.Cascade);
         }
     }
