@@ -67,4 +67,12 @@ app.UseAuthorization();
 
 app.MapControllers();
 
+// Seed Database for Testing
+using (var scope = app.Services.CreateScope())
+{
+    var services = scope.ServiceProvider;
+    var context = services.GetRequiredService<ResCollab.Api.Data.ApplicationDbContext>();
+    await ResCollab.Api.Data.DbSeeder.SeedAsync(context);
+}
+
 app.Run();

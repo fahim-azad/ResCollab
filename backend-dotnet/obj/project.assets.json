@@ -1,5 +1,5 @@
 {
-  "version": 4,
+  "version": 3,
   "targets": {
     "net8.0": {
       "Azure.Core/1.25.0": {
@@ -4175,19 +4175,19 @@
     ]
   },
   "packageFolders": {
-    "/Users/adibanoor/.nuget/packages/": {}
+    "C:\\Users\\azadf\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/Users/adibanoor/ResCollab/backend-dotnet/ResCollab.Api.csproj",
+      "projectUniqueName": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
       "projectName": "ResCollab.Api",
-      "projectPath": "/Users/adibanoor/ResCollab/backend-dotnet/ResCollab.Api.csproj",
-      "packagesPath": "/Users/adibanoor/.nuget/packages/",
-      "outputPath": "/Users/adibanoor/ResCollab/backend-dotnet/obj/",
+      "projectPath": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\ResCollab.Api.csproj",
+      "packagesPath": "C:\\Users\\azadf\\.nuget\\packages\\",
+      "outputPath": "D:\\3-2 class stuff\\software lab\\project\\ResCollab\\backend-dotnet\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/Users/adibanoor/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\azadf\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net8.0"
@@ -4197,7 +4197,6 @@
       },
       "frameworks": {
         "net8.0": {
-          "framework": "net8.0",
           "targetAlias": "net8.0",
           "projectReferences": {}
         }
@@ -4211,12 +4210,10 @@
         "enableAudit": "true",
         "auditLevel": "low",
         "auditMode": "direct"
-      },
-      "SdkAnalysisLevel": "10.0.400"
+      }
     },
     "frameworks": {
       "net8.0": {
-        "framework": "net8.0",
         "targetAlias": "net8.0",
         "dependencies": {
           "BCrypt.Net-Next": {
@@ -4251,20 +4248,6 @@
         ],
         "assetTargetFallback": true,
         "warn": true,
-        "downloadDependencies": [
-          {
-            "name": "Microsoft.AspNetCore.App.Ref",
-            "version": "[8.0.30, 8.0.30]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Host.osx-x64",
-            "version": "[8.0.30, 8.0.30]"
-          },
-          {
-            "name": "Microsoft.NETCore.App.Ref",
-            "version": "[8.0.30, 8.0.30]"
-          }
-        ],
         "frameworkReferences": {
           "Microsoft.AspNetCore.App": {
             "privateAssets": "none"
@@ -4273,7 +4256,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/local/share/dotnet/x64/sdk/10.0.400/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\8.0.425/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

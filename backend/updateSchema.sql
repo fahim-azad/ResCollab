@@ -1,0 +1,13 @@
+USE ResCollabDB;
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.columns WHERE object_id = OBJECT_ID(N'[dbo].[Users]') AND name = 'Bio')
+BEGIN
+    ALTER TABLE Users ADD Bio NVARCHAR(MAX) NULL;
+    ALTER TABLE Users ADD University NVARCHAR(100) NULL;
+    ALTER TABLE Users ADD Department NVARCHAR(100) NULL;
+    ALTER TABLE Users ADD Country NVARCHAR(100) NULL;
+    ALTER TABLE Users ADD Skills NVARCHAR(MAX) NULL;
+    ALTER TABLE Users ADD Interests NVARCHAR(MAX) NULL;
+END
+GO

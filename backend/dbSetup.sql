@@ -1,0 +1,21 @@
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'ResCollabDB')
+BEGIN
+  CREATE DATABASE ResCollabDB;
+END
+GO
+
+USE ResCollabDB;
+GO
+
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='Users' and xtype='U')
+BEGIN
+  CREATE TABLE Users (
+    Id INT IDENTITY(1,1) PRIMARY KEY,
+    FullName NVARCHAR(100) NOT NULL,
+    Email NVARCHAR(100) NOT NULL UNIQUE,
+    Role NVARCHAR(50) NOT NULL,
+    PasswordHash NVARCHAR(255) NOT NULL,
+    CreatedAt DATETIME DEFAULT GETDATE()
+  );
+END
+GO

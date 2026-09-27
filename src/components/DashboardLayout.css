@@ -1,0 +1,81 @@
+/* Dashboard Global Layout CSS */
+
+.dashboard-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: var(--bg-color);
+}
+
+/* Sidebar */
+.sidebar {
+  width: 280px;
+  background: var(--surface-color);
+  border-right: 1px solid rgba(202, 215, 230, 0.4);
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
+  z-index: 10;
+}
+
+.sidebar-logo {
+  margin-bottom: 3rem;
+  padding: 0 1rem;
+}
+
+.sidebar-logo img {
+  width: 100%;
+  max-width: 180px;
+}
+
+.nav-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  flex: 1;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 12px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.3s ease;
+}
+
+.nav-item:hover {
+  background: var(--bg-color);
+  color: var(--brand-navy);
+}
+
+.nav-item.active {
+  background: var(--bg-color);
+  color: var(--brand-navy);
+  box-shadow: inset 4px 4px 8px rgba(202, 215, 230, 0.4), inset -4px -4px 8px #ffffff;
+}
+
+.sidebar-quote {
+  margin-top: auto;
+  padding: 1.5rem;
+  background: var(--bg-color);
+  border-radius: 16px;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  line-height: 1.5;
+  box-shadow: 4px 4px 10px rgba(202, 215, 230, 0.5), -4px -4px 10px #ffffff;
+}
+
+/* Main Area */
+.main-area {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow-y: auto;
+}

@@ -27,8 +27,9 @@ const LoginPage: React.FC = () => {
         throw new Error(data.message || 'Login failed');
       }
 
-      // Save token and redirect to profile
+      // Save token and user object to local storage
       localStorage.setItem('token', data.token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       navigate('/profile');
     } catch (err: any) {
       setError(err.message);
