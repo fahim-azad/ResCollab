@@ -19,6 +19,9 @@ namespace ResCollab.Api.Data
         
         public DbSet<OpenProject> OpenProjects { get; set; }
         public DbSet<ProjectApplication> ProjectApplications { get; set; }
+        
+        public DbSet<Workspace> Workspaces { get; set; }
+        public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -72,6 +75,27 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(pa => pa.ApplicantId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Workspace <-> WorkspaceMember
+            modelBuilder.Entity<WorkspaceMember>()
+                .HasOne(wm => wm.Workspace)
+                .WithMany(w => w.Members)
+                .HasForeignKey(wm => wm.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // User <-> WorkspaceMember
+            modelBuilder.Entity<WorkspaceMember>()
+                .HasOne(wm => wm.User)
+                .WithMany()
+                .HasForeignKey(wm => wm.UserId)
+                .OnDelete(DeleteBehavior.Restrict); // Prevent circular cascade
+
+            // OpenProject <-> Workspace (Optional 1-to-1 or 1-to-Many)
+            modelBuilder.Entity<Workspace>()
+                .HasOne(w => w.OpenProject)
+                .WithMany()
+                .HasForeignKey(w => w.OpenProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }
