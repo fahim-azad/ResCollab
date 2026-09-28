@@ -18,6 +18,7 @@ namespace ResCollab.Api.Data
         public DbSet<IdeaApplication> IdeaApplications { get; set; }
         
         public DbSet<OpenProject> OpenProjects { get; set; }
+        public DbSet<ProjectApplication> ProjectApplications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -57,6 +58,20 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(p => p.SupervisorId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // One-to-Many: OpenProject <-> ProjectApplications
+            modelBuilder.Entity<ProjectApplication>()
+                .HasOne(pa => pa.Project)
+                .WithMany(p => p.Applications)
+                .HasForeignKey(pa => pa.ProjectId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Ensure no circular cascade delete for ProjectApplication -> User
+            modelBuilder.Entity<ProjectApplication>()
+                .HasOne(pa => pa.Applicant)
+                .WithMany()
+                .HasForeignKey(pa => pa.ApplicantId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

@@ -33,5 +33,8 @@ namespace ResCollab.Api.Models
         public string Status { get; set; } = "Recruiting"; // Recruiting, Closed
 
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+
+        // Navigation property for applications to this project
+        public ICollection<ProjectApplication>? Applications { get; set; }
     }
 }
