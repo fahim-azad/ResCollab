@@ -192,5 +192,59 @@ namespace ResCollab.Api.Controllers
 
             return Ok(applications);
         }
+
+        // GET /api/openproject/my
+        [HttpGet("my")]
+        public async Task<IActionResult> GetMyProjects()
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var projects = await _context.OpenProjects
+                .Include(p => p.Supervisor)
+                .Where(p => p.SupervisorId == userId)
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => new {
+                    p.Id,
+                    p.Title,
+                    p.Department,
+                    p.RequiredSkills,
+                    p.MaxStudents,
+                    p.IsFunded,
+                    p.Status,
+                    p.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(projects);
+        }
+
+        public class ReviewApplicationRequest
+        {
+            public string Status { get; set; } = string.Empty; // Accepted, Rejected
+        }
+
+        // PATCH /api/openproject/{projectId}/applications/{appId}
+        [HttpPatch("{projectId}/applications/{appId}")]
+        public async Task<IActionResult> ReviewApplication(int projectId, int appId, [FromBody] ReviewApplicationRequest req)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var project = await _context.OpenProjects.FindAsync(projectId);
+            if (project == null) return NotFound("Project not found");
+            if (project.SupervisorId != userId) return Forbid();
+
+            var application = await _context.ProjectApplications.FirstOrDefaultAsync(a => a.Id == appId && a.ProjectId == projectId);
+            if (application == null) return NotFound("Application not found");
+
+            if (req.Status == "Accepted" || req.Status == "Rejected")
+            {
+                application.Status = req.Status;
+                await _context.SaveChangesAsync();
+                return Ok(new { message = $"Application {req.Status}" });
+            }
+            return BadRequest("Invalid status.");
+        }
     }
 }
