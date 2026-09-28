@@ -23,6 +23,8 @@ namespace ResCollab.Api.Data
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
         public DbSet<WorkspaceTask> WorkspaceTasks { get; set; }
+        public DbSet<WorkspaceNote> WorkspaceNotes { get; set; }
+        public DbSet<WorkspaceFile> WorkspaceFiles { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -110,6 +112,32 @@ namespace ResCollab.Api.Data
                 .HasOne(t => t.Assignee)
                 .WithMany()
                 .HasForeignKey(t => t.AssignedToId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Workspace <-> WorkspaceNote
+            modelBuilder.Entity<WorkspaceNote>()
+                .HasOne(n => n.Workspace)
+                .WithMany()
+                .HasForeignKey(n => n.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WorkspaceNote>()
+                .HasOne(n => n.CreatedBy)
+                .WithMany()
+                .HasForeignKey(n => n.CreatedById)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Workspace <-> WorkspaceFile
+            modelBuilder.Entity<WorkspaceFile>()
+                .HasOne(f => f.Workspace)
+                .WithMany()
+                .HasForeignKey(f => f.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<WorkspaceFile>()
+                .HasOne(f => f.UploadedBy)
+                .WithMany()
+                .HasForeignKey(f => f.UploadedById)
                 .OnDelete(DeleteBehavior.SetNull);
         }
     }
