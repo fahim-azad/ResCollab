@@ -28,6 +28,12 @@ const ProjectMarketplace: React.FC = () => {
   });
   const [submitting, setSubmitting] = useState(false);
 
+  // Application Modal States
+  const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [coverLetter, setCoverLetter] = useState('');
+  const [applying, setApplying] = useState(false);
+
   useEffect(() => {
     const userStr = localStorage.getItem('user');
     if (userStr) {
@@ -80,8 +86,38 @@ const ProjectMarketplace: React.FC = () => {
     }
   };
 
-  const handleApply = () => {
-    alert("Application submitted! The supervisor will review your profile.");
+  const handleApplyClick = (projectId: number) => {
+    setSelectedProjectId(projectId);
+    setCoverLetter('');
+    setIsApplyModalOpen(true);
+  };
+
+  const handleApplySubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedProjectId) return;
+    setApplying(true);
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/openproject/${selectedProjectId}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ coverLetter })
+      });
+      
+      const text = await res.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = { message: text }; }
+      
+      if (!res.ok) throw new Error(data.message || data.title || 'Failed to apply to project.');
+      
+      alert(data.message || "Application submitted successfully!");
+      setIsApplyModalOpen(false);
+      setSelectedProjectId(null);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setApplying(false);
+    }
   };
 
   return (
@@ -145,7 +181,7 @@ const ProjectMarketplace: React.FC = () => {
                 <div className="project-skills-text">{proj.requiredSkills || 'General research interest'}</div>
               </div>
               
-              <button className="apply-project-btn" onClick={handleApply}>
+              <button className="apply-project-btn" onClick={() => handleApplyClick(proj.id)}>
                 <Send size={18} /> Apply for Position ({proj.maxStudents} open slots)
               </button>
             </div>
@@ -201,6 +237,39 @@ const ProjectMarketplace: React.FC = () => {
                 <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
                 <button type="submit" className="create-btn" style={{background: 'var(--brand-navy)'}} disabled={submitting}>
                   {submitting ? 'Posting...' : 'Post Position'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Application Modal */}
+      {isApplyModalOpen && (
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-content animate-slide-up">
+            <div className="modal-header">
+              <h2>Apply for Position</h2>
+              <button className="close-btn" onClick={() => setIsApplyModalOpen(false)}>✕</button>
+            </div>
+            
+            <form onSubmit={handleApplySubmit}>
+              <div className="form-group">
+                <label>Cover Letter / Statement of Interest *</label>
+                <textarea 
+                  className="neo-input" 
+                  required 
+                  rows={6} 
+                  value={coverLetter} 
+                  onChange={e => setCoverLetter(e.target.value)}
+                  placeholder="Explain why you are a good fit for this project, detailing your skills and prior experience..."
+                ></textarea>
+              </div>
+              
+              <div className="modal-footer">
+                <button type="button" className="cancel-btn" onClick={() => setIsApplyModalOpen(false)}>Cancel</button>
+                <button type="submit" className="create-btn" style={{background: 'var(--brand-mint)', color: 'var(--brand-navy)'}} disabled={applying}>
+                  {applying ? 'Submitting...' : 'Submit Application'}
                 </button>
               </div>
             </form>
