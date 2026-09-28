@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Users, Shield, User, Clock, Briefcase } from 'lucide-react';
 import WorkspaceTasks from './WorkspaceTasks';
+import WorkspaceFilesAndNotes from './WorkspaceFilesAndNotes';
 import './WorkspaceDashboard.css';
 
 interface WorkspaceDto {
@@ -219,10 +220,7 @@ const WorkspaceDashboard: React.FC = () => {
           )}
 
           {activeTab === 'files' && (
-             <div style={{ padding: '3rem', textAlign: 'center', color: '#888' }}>
-               <Briefcase size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
-               <p>Files & Notes UI coming soon.</p>
-             </div>
+             <WorkspaceFilesAndNotes workspaceId={selectedWorkspace.id} />
           )}
         </div>
       )}
