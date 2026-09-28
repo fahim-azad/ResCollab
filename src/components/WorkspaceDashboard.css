@@ -1,0 +1,154 @@
+.workspace-container {
+  padding: 2rem;
+  animation: fadeIn 0.4s ease-out;
+}
+
+.workspace-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
+.workspace-title h1 {
+  font-size: 2.2rem;
+  color: var(--brand-navy);
+  margin-bottom: 0.5rem;
+  font-weight: 700;
+}
+
+.workspace-title p {
+  color: #666;
+  font-size: 1.1rem;
+}
+
+.workspace-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 3rem;
+}
+
+.workspace-card {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  border-top: 4px solid var(--brand-blue);
+  cursor: pointer;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.workspace-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
+}
+
+.workspace-card h3 {
+  color: var(--brand-navy);
+  font-size: 1.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.workspace-card p {
+  color: #666;
+  font-size: 0.95rem;
+  margin-bottom: 1.5rem;
+  flex-grow: 1;
+}
+
+.workspace-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.85rem;
+  color: #888;
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+}
+
+.role-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.3rem 0.8rem;
+  border-radius: 20px;
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.role-badge.admin {
+  background: rgba(43, 192, 228, 0.1);
+  color: var(--brand-blue);
+}
+
+.role-badge.member {
+  background: rgba(234, 236, 239, 1);
+  color: #555;
+}
+
+/* Detail Section */
+.workspace-detail {
+  background: white;
+  border-radius: 12px;
+  padding: 2rem;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  margin-top: 2rem;
+  animation: slideUp 0.3s ease-out;
+}
+
+.detail-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #eee;
+}
+
+.members-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.member-row {
+  display: flex;
+  align-items: center;
+  padding: 1rem;
+  background: #f8fafc;
+  border-radius: 8px;
+  border-left: 3px solid var(--brand-blue);
+}
+
+.member-info {
+  flex-grow: 1;
+  margin-left: 1rem;
+}
+
+.member-info h4 {
+  color: var(--brand-navy);
+  margin-bottom: 0.2rem;
+}
+
+.member-info p {
+  color: #666;
+  font-size: 0.9rem;
+}
+
+.add-member-form {
+  display: flex;
+  gap: 1rem;
+  background: #f0f7ff;
+  padding: 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 2rem;
+  align-items: flex-end;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}

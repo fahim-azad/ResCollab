@@ -10,6 +10,7 @@ import SupervisorRecommendations from './components/SupervisorRecommendations';
 import TeammateRecommendations from './components/TeammateRecommendations';
 import IdeaMarketplace from './components/IdeaMarketplace';
 import ProjectMarketplace from './components/ProjectMarketplace';
+import WorkspaceDashboard from './components/WorkspaceDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -27,6 +28,7 @@ const App: React.FC = () => {
             <Route path="/teammates" element={<TeammateRecommendations />} />
             <Route path="/ideas" element={<IdeaMarketplace />} />
             <Route path="/projects" element={<ProjectMarketplace />} />
+            <Route path="/workspaces" element={<WorkspaceDashboard />} />
           </Route>
         </Route>
       </Routes>
