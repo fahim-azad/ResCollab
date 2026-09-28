@@ -22,6 +22,7 @@ namespace ResCollab.Api.Data
         
         public DbSet<Workspace> Workspaces { get; set; }
         public DbSet<WorkspaceMember> WorkspaceMembers { get; set; }
+        public DbSet<WorkspaceTask> WorkspaceTasks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -95,6 +96,20 @@ namespace ResCollab.Api.Data
                 .HasOne(w => w.OpenProject)
                 .WithMany()
                 .HasForeignKey(w => w.OpenProjectId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Workspace <-> WorkspaceTask
+            modelBuilder.Entity<WorkspaceTask>()
+                .HasOne(t => t.Workspace)
+                .WithMany()
+                .HasForeignKey(t => t.WorkspaceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // User <-> WorkspaceTask (Assignee)
+            modelBuilder.Entity<WorkspaceTask>()
+                .HasOne(t => t.Assignee)
+                .WithMany()
+                .HasForeignKey(t => t.AssignedToId)
                 .OnDelete(DeleteBehavior.SetNull);
         }
     }
