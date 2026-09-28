@@ -49,6 +49,9 @@ builder.Services.AddCors(options =>
 builder.Services.AddHttpClient();
 builder.Services.AddScoped<IResearchConnector, CrossrefConnector>();
 
+// Add Access Control Service
+builder.Services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
