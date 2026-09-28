@@ -113,6 +113,10 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
     }
   };
 
+  const totalTasks = tasks.length;
+  const completedTasks = tasks.filter(t => t.status === 'Done').length;
+  const progressPercent = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
+
   return (
     <div className="workspace-tasks-tab animate-fade-in" style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
@@ -120,6 +124,22 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
         <button className="create-btn" onClick={() => setIsModalOpen(true)}>
           <Plus size={18} /> New Task
         </button>
+      </div>
+
+      {/* Progress Overview */}
+      <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '12px', border: '1px solid #eee', marginBottom: '2rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', alignItems: 'flex-end' }}>
+          <div>
+            <h4 style={{ margin: 0, color: 'var(--brand-navy)' }}>Project Progress Overview</h4>
+            <p style={{ margin: '0.2rem 0 0 0', fontSize: '0.9rem', color: '#666' }}>{completedTasks} of {totalTasks} tasks completed</p>
+          </div>
+          <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--brand-blue)' }}>
+            {progressPercent}%
+          </div>
+        </div>
+        <div style={{ width: '100%', height: '10px', background: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
+          <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--brand-blue), #38bdf8)', transition: 'width 0.5s ease-out' }}></div>
+        </div>
       </div>
 
       {loading ? (
