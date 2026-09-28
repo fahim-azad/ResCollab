@@ -122,5 +122,75 @@ namespace ResCollab.Api.Controllers
                 SupervisorName = project.Supervisor != null ? project.Supervisor.FullName : "Unknown"
             });
         }
+        public class ApplyProjectRequest
+        {
+            public string CoverLetter { get; set; } = string.Empty;
+        }
+
+        // POST /api/openproject/{id}/apply
+        [HttpPost("{id}/apply")]
+        public async Task<IActionResult> ApplyToProject(int id, [FromBody] ApplyProjectRequest req)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var project = await _context.OpenProjects.FindAsync(id);
+            if (project == null) return NotFound("Project not found");
+
+            if (project.Status != "Recruiting")
+                return BadRequest("This project is not currently recruiting.");
+
+            // Check duplicate submission
+            var existingApplication = await _context.ProjectApplications
+                .FirstOrDefaultAsync(a => a.ProjectId == id && a.ApplicantId == userId);
+
+            if (existingApplication != null)
+                return BadRequest("You have already applied to this project.");
+
+            var application = new ProjectApplication
+            {
+                ProjectId = id,
+                ApplicantId = userId,
+                CoverLetter = req.CoverLetter,
+                Status = "Pending",
+                AppliedAt = DateTime.UtcNow
+            };
+
+            _context.ProjectApplications.Add(application);
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Application submitted successfully", applicationId = application.Id });
+        }
+
+        // GET /api/openproject/{id}/applications
+        [HttpGet("{id}/applications")]
+        public async Task<IActionResult> GetProjectApplications(int id)
+        {
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+
+            var project = await _context.OpenProjects.FindAsync(id);
+            if (project == null) return NotFound("Project not found");
+
+            if (project.SupervisorId != userId)
+                return Forbid(); // Only supervisor can view applications
+
+            var applications = await _context.ProjectApplications
+                .Include(a => a.Applicant)
+                .Where(a => a.ProjectId == id)
+                .OrderByDescending(a => a.AppliedAt)
+                .Select(a => new {
+                    a.Id,
+                    a.ApplicantId,
+                    ApplicantName = a.Applicant != null ? a.Applicant.FullName : "Unknown",
+                    ApplicantEmail = a.Applicant != null ? a.Applicant.Email : "",
+                    a.CoverLetter,
+                    a.Status,
+                    a.AppliedAt
+                })
+                .ToListAsync();
+
+            return Ok(applications);
+        }
     }
 }
