@@ -22,6 +22,7 @@ interface MemberDto {
 const WorkspaceDashboard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceDto | null>(null);
+  const [activeTab, setActiveTab] = useState<'members' | 'tasks' | 'files'>('members');
   const [members, setMembers] = useState<MemberDto[]>([]);
   
   const [loading, setLoading] = useState(true);
@@ -55,6 +56,7 @@ const WorkspaceDashboard: React.FC = () => {
 
   const handleSelectWorkspace = async (ws: WorkspaceDto) => {
     setSelectedWorkspace(ws);
+    setActiveTab('members');
     try {
       const token = localStorage.getItem('token');
       const res = await fetch(`http://localhost:5000/api/workspace/${ws.id}/members`, {
@@ -160,46 +162,70 @@ const WorkspaceDashboard: React.FC = () => {
 
       {selectedWorkspace && (
         <div className="workspace-detail">
-          <div className="detail-header">
-            <h2>{selectedWorkspace.name} - Members Access Management</h2>
+          <div className="detail-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
+            <h2 style={{ margin: 0 }}>{selectedWorkspace.name}</h2>
+            
+            <div className="workspace-tabs" style={{ display: 'flex', gap: '1rem', width: '100%', borderBottom: '1px solid #eee' }}>
+              <button className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>Members & Access</button>
+              <button className={`tab-btn ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>Tasks & Milestones</button>
+              <button className={`tab-btn ${activeTab === 'files' ? 'active' : ''}`} onClick={() => setActiveTab('files')}>Files & Notes</button>
+            </div>
           </div>
 
-          {selectedWorkspace.role === 'Admin' && (
-            <form className="add-member-form" onSubmit={handleAddMember}>
-              <div className="form-group" style={{ margin: 0, flexGrow: 1 }}>
-                <label>Add User ID to Workspace</label>
-                <input 
-                  type="number" 
-                  className="neo-input" 
-                  placeholder="e.g. 2" 
-                  required 
-                  value={newUserId} 
-                  onChange={e => setNewUserId(e.target.value)} 
-                />
+          {activeTab === 'members' && (
+            <>
+              {selectedWorkspace.role === 'Admin' && (
+                <form className="add-member-form" onSubmit={handleAddMember}>
+                  <div className="form-group" style={{ margin: 0, flexGrow: 1 }}>
+                    <label>Add User ID to Workspace</label>
+                    <input 
+                      type="number" 
+                      className="neo-input" 
+                      placeholder="e.g. 2" 
+                      required 
+                      value={newUserId} 
+                      onChange={e => setNewUserId(e.target.value)} 
+                    />
+                  </div>
+                  <button type="submit" className="create-btn" style={{ background: 'var(--brand-mint)', color: 'var(--brand-navy)' }}>
+                    Add Member
+                  </button>
+                </form>
+              )}
+
+              <div className="members-list">
+                {members.map(member => (
+                  <div key={member.userId} className="member-row">
+                    <div style={{ background: '#e2e8f0', padding: '0.8rem', borderRadius: '50%' }}>
+                      <User size={24} color="#64748b" />
+                    </div>
+                    <div className="member-info">
+                      <h4>{member.userName}</h4>
+                      <p>{member.userEmail}</p>
+                    </div>
+                    <span className={`role-badge ${member.role.toLowerCase()}`}>
+                      {member.role === 'Admin' ? <Shield size={14}/> : <User size={14}/>}
+                      {member.role}
+                    </span>
+                  </div>
+                ))}
               </div>
-              <button type="submit" className="create-btn" style={{ background: 'var(--brand-mint)', color: 'var(--brand-navy)' }}>
-                Add Member
-              </button>
-            </form>
+            </>
           )}
 
-          <div className="members-list">
-            {members.map(member => (
-              <div key={member.userId} className="member-row">
-                <div style={{ background: '#e2e8f0', padding: '0.8rem', borderRadius: '50%' }}>
-                  <User size={24} color="#64748b" />
-                </div>
-                <div className="member-info">
-                  <h4>{member.userName}</h4>
-                  <p>{member.userEmail}</p>
-                </div>
-                <span className={`role-badge ${member.role.toLowerCase()}`}>
-                  {member.role === 'Admin' ? <Shield size={14}/> : <User size={14}/>}
-                  {member.role}
-                </span>
-              </div>
-            ))}
-          </div>
+          {activeTab === 'tasks' && (
+             <div style={{ padding: '3rem', textAlign: 'center', color: '#888' }}>
+               <Briefcase size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+               <p>Task Management UI coming soon.</p>
+             </div>
+          )}
+
+          {activeTab === 'files' && (
+             <div style={{ padding: '3rem', textAlign: 'center', color: '#888' }}>
+               <Briefcase size={48} style={{ opacity: 0.2, marginBottom: '1rem' }} />
+               <p>Files & Notes UI coming soon.</p>
+             </div>
+          )}
         </div>
       )}
 

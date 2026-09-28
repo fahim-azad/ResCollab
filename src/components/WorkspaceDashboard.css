@@ -152,3 +152,29 @@
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.workspace-tabs {
+  display: flex;
+  gap: 1rem;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #666;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  transition: all 0.2s ease;
+  margin-bottom: -1px;
+}
+
+.tab-btn.active {
+  color: var(--brand-navy);
+  border-bottom: 2px solid var(--brand-blue);
+}
+.tab-btn:hover:not(.active) {
+  color: var(--brand-blue);
+}
