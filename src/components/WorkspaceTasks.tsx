@@ -91,7 +91,7 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
   const handleStatusChange = async (taskId: number, newStatus: string) => {
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/tasks/${taskId}/status`, {
+      const res = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/tasks/${taskId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
         body: JSON.stringify({ status: newStatus })
