@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
   Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, 
   Bell, Edit2, User as UserIcon, BookOpen, Settings as SettingsIcon,
   MapPin, Mail, Building, GraduationCap, Globe, Link as LinkIcon,
-  Save, X, FileText, Award
+  Save, X, FileText, Award, UserPlus, UserCheck, Clock
 } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './ProfilePage.css';
 
 interface ProfileData {
+  id?: number;
   name: string;
   role: string;
   bio: string;
@@ -27,7 +28,11 @@ const ProfilePage: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<Partial<ProfileData>>({});
   const [saving, setSaving] = useState(false);
+  const { userId } = useParams<{ userId?: string }>();
   const navigate = useNavigate();
+
+  const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [isFollowing, setIsFollowing] = useState(false);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -37,7 +42,19 @@ const ProfilePage: React.FC = () => {
     }
 
     try {
-      const res = await fetch('http://localhost:5000/api/profile', {
+      if (userId) {
+        const myRes = await fetch('http://localhost:5000/api/profile', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (myRes.ok) {
+          const myData = await myRes.json();
+          if (myData.id.toString() === userId) {
+            navigate('/profile', { replace: true });
+            return;
+          }
+        }
+      }
+
+      const endpoint = userId ? `http://localhost:5000/api/profile/${userId}` : 'http://localhost:5000/api/profile';
+      const res = await fetch(endpoint, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
 
@@ -45,20 +62,74 @@ const ProfilePage: React.FC = () => {
 
       const data = await res.json();
       setUser(data);
-      setEditData({
-        bio: data.bio,
-        university: data.university,
-        department: data.department,
-        country: data.country,
-        skills: data.skills.join(', '),
-        interests: data.interests.join(', ')
-      } as any);
+      
+      if (!userId) {
+        setEditData({
+          bio: data.bio,
+          university: data.university,
+          department: data.department,
+          country: data.country,
+          skills: data.skills.join(', '),
+          interests: data.interests.join(', ')
+        } as any);
+      } else {
+        fetchNetworkStatus(data.id, token);
+      }
     } catch (err: any) {
       console.error(err);
-      localStorage.removeItem('token');
-      navigate('/login');
+      if (!userId) {
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchNetworkStatus = async (targetId: number, token: string) => {
+    try {
+      const [connRes, followRes] = await Promise.all([
+        fetch('http://localhost:5000/api/network/connections', { headers: { 'Authorization': `Bearer ${token}` } }),
+        fetch('http://localhost:5000/api/network/following', { headers: { 'Authorization': `Bearer ${token}` } })
+      ]);
+      
+      if (connRes.ok) {
+        const conns = await connRes.json();
+        const specificConn = conns.find((c: any) => c.requesterId === targetId || c.targetId === targetId);
+        if (specificConn) {
+          setConnectionStatus(specificConn.status);
+        } else {
+          setConnectionStatus(null);
+        }
+      }
+      
+      if (followRes.ok) {
+        const follows = await followRes.json();
+        const isF = follows.some((f: any) => f.followedId === targetId);
+        setIsFollowing(isF);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleFollow = async () => {
+    if (!user || !user.id) return;
+    const token = localStorage.getItem('token');
+    const method = isFollowing ? 'DELETE' : 'POST';
+    await fetch(`http://localhost:5000/api/network/follow/${user.id}`, { method, headers: { 'Authorization': `Bearer ${token}` } });
+    setIsFollowing(!isFollowing);
+  };
+
+  const handleConnect = async () => {
+    if (!user || !user.id) return;
+    const token = localStorage.getItem('token');
+    if (connectionStatus) {
+      await fetch(`http://localhost:5000/api/network/connect/${user.id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+      setConnectionStatus(null);
+    } else {
+      await fetch(`http://localhost:5000/api/network/connect/${user.id}`, { method: 'POST', headers: { 'Authorization': `Bearer ${token}` } });
+      setConnectionStatus('Pending');
     }
   };
 
@@ -139,9 +210,21 @@ const ProfilePage: React.FC = () => {
             <div className="header-info">
               <div className="header-title-row">
                 <h1 className="header-name">{user.name}</h1>
-                <button className="edit-pill" onClick={() => setIsEditing(true)}>
-                  <Edit2 size={14} /> Edit Profile
-                </button>
+                {!userId ? (
+                  <button className="edit-pill" onClick={() => setIsEditing(true)}>
+                    <Edit2 size={14} /> Edit Profile
+                  </button>
+                ) : (
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button className={`neo-button ${isFollowing ? '' : 'brand-button'}`} onClick={handleFollow} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {isFollowing ? <UserCheck size={14} /> : <UserPlus size={14} />} {isFollowing ? 'Following' : 'Follow'}
+                    </button>
+                    <button className="neo-button" onClick={handleConnect} style={{ padding: '0.4rem 1rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      {connectionStatus === 'Accepted' ? <UserCheck size={14} /> : connectionStatus === 'Pending' ? <Clock size={14} /> : <UserPlus size={14} />} 
+                      {connectionStatus === 'Accepted' ? 'Connected' : connectionStatus === 'Pending' ? 'Pending' : 'Connect'}
+                    </button>
+                  </div>
+                )}
               </div>
               
               <div className="header-role">{user.role} | {user.department || 'Add Department'}</div>
@@ -189,7 +272,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><User size={20} /> Personal Information</div>
-                <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="info-grid">
                 <div className="info-field">
@@ -231,7 +314,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><BookOpen size={20} /> Research Interests</div>
-                <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="tags-container">
                 {user.interests && user.interests.length > 0 ? user.interests.map((interest, idx) => (
@@ -244,7 +327,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><FileText size={20} /> Research Summary</div>
-                <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>}
               </div>
               <p style={{ fontSize: '0.95rem', color: 'var(--text-secondary)', lineHeight: 1.6 }}>
                 {user.bio || 'Add a research summary to showcase your work.'}
@@ -255,7 +338,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><SettingsIcon size={20} /> Skills</div>
-                <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill" onClick={() => setIsEditing(true)}><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="tags-container">
                 {user.skills && user.skills.length > 0 ? user.skills.map((skill, idx) => (
@@ -268,7 +351,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><GraduationCap size={20} /> Education</div>
-                <button className="edit-pill"><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill"><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="timeline">
                 <div className="timeline-item">
@@ -290,7 +373,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><LinkIcon size={20} /> Links & Identifiers</div>
-                <button className="edit-pill"><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill"><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="link-list">
                 <div className="link-item">
@@ -315,7 +398,7 @@ const ProfilePage: React.FC = () => {
             <div className="grid-card">
               <div className="card-header">
                 <div className="card-title"><Globe size={20} /> Social Profiles</div>
-                <button className="edit-pill"><Edit2 size={14} /> Edit</button>
+                {!userId && <button className="edit-pill"><Edit2 size={14} /> Edit</button>}
               </div>
               <div className="link-list">
                 <div className="link-item">

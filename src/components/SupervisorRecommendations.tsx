@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { User, MapPin, Building, GraduationCap, AlertCircle } from 'lucide-react';
 import './SupervisorRecommendations.css';
 
@@ -16,6 +17,7 @@ const SupervisorRecommendations: React.FC = () => {
   const [supervisors, setSupervisors] = useState<SupervisorDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchRecommendations();
@@ -102,7 +104,7 @@ const SupervisorRecommendations: React.FC = () => {
                 </div>
               )}
 
-              <button className="connect-btn">View Full Profile</button>
+              <button className="connect-btn" onClick={() => navigate(`/profile/${sup.userId}`)}>View Full Profile</button>
             </div>
           ))}
         </div>

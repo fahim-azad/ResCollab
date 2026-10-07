@@ -40,6 +40,7 @@ namespace ResCollab.Api.Controllers
 
             return Ok(new
             {
+                id = user.Id,
                 name = user.FullName,
                 role = user.Role,
                 bio = user.Profile?.Bio ?? "",
@@ -48,6 +49,32 @@ namespace ResCollab.Api.Controllers
                 country = user.Profile?.Country ?? "",
                 skills = string.IsNullOrEmpty(user.Profile?.Skills) ? new string[0] : user.Profile.Skills.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
                 interests = string.IsNullOrEmpty(user.Profile?.Interests) ? new string[0] : user.Profile.Interests.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
+                publications = new object[0],
+                projects = new object[0]
+            });
+        }
+
+        [HttpGet("{id}")]
+        public async Task<IActionResult> GetProfileById(int id)
+        {
+            var user = await _context.Users
+                .Include(u => u.Profile)
+                .FirstOrDefaultAsync(u => u.Id == id);
+
+            if (user == null) return NotFound();
+
+            return Ok(new
+            {
+                id = user.Id,
+                name = user.FullName,
+                role = user.Role,
+                bio = user.Profile?.Bio ?? "",
+                university = user.Profile?.University ?? "",
+                department = user.Profile?.Department ?? "",
+                country = user.Profile?.Country ?? "",
+                skills = string.IsNullOrEmpty(user.Profile?.Skills) ? new string[0] : user.Profile.Skills.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
+                interests = string.IsNullOrEmpty(user.Profile?.Interests) ? new string[0] : user.Profile.Interests.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
+                email = user.Email,
                 publications = new object[0],
                 projects = new object[0]
             });

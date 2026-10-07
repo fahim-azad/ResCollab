@@ -1,0 +1,118 @@
+.network-container {
+  padding: 2rem;
+}
+
+.network-header {
+  margin-bottom: 2rem;
+}
+
+.network-header h1 {
+  font-size: 2rem;
+  color: var(--brand-navy);
+  margin-bottom: 0.5rem;
+}
+
+.network-header p {
+  color: #64748b;
+  font-size: 1.1rem;
+}
+
+.network-tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 2rem;
+}
+
+.network-tabs .tab-btn {
+  padding: 0.8rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.network-tabs .tab-btn:hover {
+  color: var(--brand-blue);
+}
+
+.network-tabs .tab-btn.active {
+  color: var(--brand-blue);
+  border-bottom-color: var(--brand-blue);
+}
+
+.network-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.network-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.02);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.network-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.network-card .avatar {
+  background: #f1f5f9;
+  border-radius: 50%;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #64748b;
+}
+
+.network-card h3:hover {
+  color: var(--brand-blue);
+  text-decoration: underline;
+}
+
+.accept-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: var(--brand-mint);
+  color: var(--brand-navy);
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.reject-btn {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.6rem;
+  background: #fee2e2;
+  color: #991b1b;
+  border: none;
+  border-radius: 6px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+}
+
+.accept-btn:hover, .reject-btn:hover {
+  opacity: 0.9;
+}

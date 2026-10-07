@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Building, GraduationCap, AlertCircle, MessageCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Users, Building, GraduationCap, AlertCircle, User } from 'lucide-react';
 import './TeammateRecommendations.css';
 
 interface TeammateDto {
@@ -17,6 +18,7 @@ const TeammateRecommendations: React.FC = () => {
   const [teammates, setTeammates] = useState<TeammateDto[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchTeammates();
@@ -118,8 +120,8 @@ const TeammateRecommendations: React.FC = () => {
                 )}
               </div>
 
-              <button className="message-btn">
-                <MessageCircle size={18} /> Message
+              <button className="message-btn" onClick={() => navigate(`/profile/${peer.userId}`)}>
+                <User size={18} /> View Profile
               </button>
             </div>
           ))}

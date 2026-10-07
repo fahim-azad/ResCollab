@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield } from 'lucide-react';
+import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, Globe } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './DashboardLayout.css';
 
@@ -29,6 +29,9 @@ const Sidebar: React.FC = () => {
         </NavLink>
         <NavLink to="/profile" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <User size={20} /> Profile
+        </NavLink>
+        <NavLink to="/network" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+          <Globe size={20} /> My Network
         </NavLink>
         <NavLink to="/supervisors" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <Users size={20} /> Supervisors
