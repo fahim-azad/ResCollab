@@ -185,7 +185,7 @@ const ProfilePage: React.FC = () => {
             <input type="text" placeholder="Search for papers, researchers, datasets..." />
           </div>
           <div className="topbar-right">
-            <button className="icon-button"><Bell size={20} /></button>
+            <button className="icon-button" onClick={() => navigate('/notifications')} title="Notifications"><Bell size={20} /></button>
             <div className="mini-profile">
               <div className="mini-profile-initials">
                 {user.name ? user.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() : '?'}

@@ -12,6 +12,7 @@ import IdeaMarketplace from './components/IdeaMarketplace';
 import ProjectMarketplace from './components/ProjectMarketplace';
 import WorkspaceDashboard from './components/WorkspaceDashboard';
 import NetworkPage from './components/NetworkPage';
+import NotificationsPage from './components/NotificationsPage';
 import './index.css';
 
 const App: React.FC = () => {
@@ -26,6 +27,7 @@ const App: React.FC = () => {
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/network" element={<NetworkPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/search" element={<SearchPage />} />
             <Route path="/supervisors" element={<SupervisorRecommendations />} />
             <Route path="/teammates" element={<TeammateRecommendations />} />
