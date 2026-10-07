@@ -184,6 +184,9 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
   const completedTasks = tasks.filter(t => t.status === 'Done').length;
   const progressPercent = totalTasks === 0 ? 0 : Math.round((completedTasks / totalTasks) * 100);
 
+  const milestones = tasks.filter(t => t.isMilestone);
+  const completedMilestones = milestones.filter(t => t.status === 'Done').length;
+
   return (
     <div className="workspace-tasks-tab animate-fade-in" style={{ padding: '2rem 0' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '2rem' }}>
@@ -208,6 +211,61 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
           <div style={{ width: `${progressPercent}%`, height: '100%', background: 'linear-gradient(90deg, var(--brand-blue), #38bdf8)', transition: 'width 0.5s ease-out' }}></div>
         </div>
       </div>
+
+      {/* Milestone Tracker UI */}
+      {milestones.length > 0 && (
+        <div style={{ background: '#fff', padding: '1.5rem', borderRadius: '12px', border: '1px solid #eee', marginBottom: '2rem', boxShadow: '0 2px 10px rgba(0,0,0,0.02)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+            <h4 style={{ margin: 0, color: 'var(--brand-navy)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <Flag size={18} color="#f59e0b" /> Major Milestones Tracker
+            </h4>
+            <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 600 }}>{completedMilestones} / {milestones.length} Completed</span>
+          </div>
+          
+          <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem', paddingTop: '0.5rem' }}>
+            {milestones.map((m, index) => (
+              <div key={m.id} style={{ 
+                minWidth: '240px', 
+                flex: '1',
+                padding: '1.2rem', 
+                borderRadius: '8px', 
+                border: `2px solid ${getStatusColor(m.status)}`,
+                background: m.status === 'Done' ? '#f0fdf4' : '#f8fafc',
+                position: 'relative',
+                boxShadow: '0 2px 5px rgba(0,0,0,0.03)'
+              }}>
+                <div style={{ position: 'absolute', top: '-12px', left: '-12px', background: getStatusColor(m.status), color: m.status === 'Todo' ? '#333' : '#fff', width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold', fontSize: '0.9rem', border: '2px solid #fff' }}>
+                  {index + 1}
+                </div>
+                <h5 style={{ margin: '0 0 0.8rem 0', fontSize: '1.05rem', color: '#334155', lineHeight: '1.4' }}>{m.title}</h5>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ 
+                    display: 'inline-block',
+                    padding: '0.3rem 0.8rem', 
+                    borderRadius: '12px', 
+                    fontSize: '0.75rem', 
+                    fontWeight: 700, 
+                    background: m.status === 'Done' ? '#dcfce7' : m.status === 'InProgress' ? '#e0f2fe' : '#f1f5f9',
+                    color: m.status === 'Done' ? '#166534' : m.status === 'InProgress' ? '#0369a1' : '#475569'
+                  }}>
+                    {m.status === 'Todo' ? 'To Do' : m.status === 'InProgress' ? 'In Progress' : 'Completed'}
+                  </span>
+                  
+                  <button onClick={() => openFeedbackModal(m)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#64748b' }} title="View Feedback">
+                    <MessageSquare size={16} />
+                  </button>
+                </div>
+                
+                {m.dueDate && (
+                  <div style={{ marginTop: '0.8rem', fontSize: '0.8rem', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.4rem', borderTop: '1px solid #e2e8f0', paddingTop: '0.5rem' }}>
+                    <Clock size={12} /> Due: {new Date(m.dueDate).toLocaleDateString()}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <p>Loading tasks...</p>
