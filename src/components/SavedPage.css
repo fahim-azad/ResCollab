@@ -1,0 +1,133 @@
+.saved-container {
+  padding: 2rem;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.saved-header {
+  margin-bottom: 2rem;
+}
+
+.saved-header h1 {
+  font-size: 2rem;
+}
+
+.saved-header p {
+  color: #64748b;
+  font-size: 1.1rem;
+  margin-top: 0.5rem;
+}
+
+.saved-tabs {
+  display: flex;
+  gap: 1rem;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 2rem;
+}
+
+.saved-tabs .tab-btn {
+  padding: 0.8rem 1.5rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.saved-tabs .tab-btn:hover {
+  color: var(--brand-blue);
+}
+
+.saved-tabs .tab-btn.active {
+  color: var(--brand-blue);
+  border-bottom-color: var(--brand-blue);
+}
+
+.saved-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1.5rem;
+}
+
+.saved-card {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.saved-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+.saved-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.saved-card h3 {
+  margin: 0 0 0.5rem 0;
+  color: var(--brand-navy);
+  font-size: 1.2rem;
+  cursor: pointer;
+}
+
+.saved-card h3:hover {
+  color: var(--brand-blue);
+  text-decoration: underline;
+}
+
+.saved-card p {
+  margin: 0 0 1.5rem 0;
+  color: #475569;
+  font-size: 0.95rem;
+}
+
+.saved-meta {
+  font-size: 0.8rem;
+  color: #94a3b8;
+  border-top: 1px solid #f1f5f9;
+  padding-top: 1rem;
+}
+
+.remove-btn {
+  background: transparent;
+  border: 1px solid #cbd5e1;
+  color: #64748b;
+  border-radius: 6px;
+  padding: 0.3rem 0.8rem;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.remove-btn:hover {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fecaca;
+}
+
+.empty-saved {
+  text-align: center;
+  padding: 4rem 2rem;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px dashed #cbd5e1;
+}
+
+.empty-saved h3 {
+  color: #334155;
+  margin: 0 0 0.5rem 0;
+}
+
+.empty-saved p {
+  color: #64748b;
+  margin: 0;
+}

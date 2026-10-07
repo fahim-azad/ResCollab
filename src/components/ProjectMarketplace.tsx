@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, FolderOpen, Users, Clock, Building, Send, DollarSign, Briefcase } from 'lucide-react';
+import BookmarkButton from './BookmarkButton';
 import './IdeaMarketplace.css'; // Reusing modal styles
 import './ProjectMarketplace.css';
 
@@ -219,7 +220,10 @@ const ProjectMarketplace: React.FC = () => {
             <div key={proj.id} className="project-card animate-slide-up">
               {proj.isFunded && <div className="funded-ribbon">Funded</div>}
               
-              <h3 className="project-title">{proj.title}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <h3 className="project-title" style={{ margin: 0 }}>{proj.title}</h3>
+                <BookmarkButton itemType="Project" itemId={proj.id} />
+              </div>
               
               <div className="project-meta">
                 <div className="project-meta-row">

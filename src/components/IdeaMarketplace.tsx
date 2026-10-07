@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Lightbulb, Users, Clock, Tag, X, Send } from 'lucide-react';
+import BookmarkButton from './BookmarkButton';
 import './IdeaMarketplace.css';
 
 interface IdeaDto {
@@ -116,7 +117,10 @@ const IdeaMarketplace: React.FC = () => {
             <div key={idea.id} className="idea-card animate-slide-up">
               <span className={`idea-status ${idea.status.toLowerCase()}`}>{idea.status}</span>
               
-              <h3 className="idea-title">{idea.title}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <h3 className="idea-title" style={{ margin: 0 }}>{idea.title}</h3>
+                <BookmarkButton itemType="Idea" itemId={idea.id} />
+              </div>
               
               <div className="idea-meta">
                 <span><UserIcon size={14} /> {idea.creatorName}</span>
