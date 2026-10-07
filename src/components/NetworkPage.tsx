@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Check, X, User } from 'lucide-react';
+import { Check, X, User, UserMinus } from 'lucide-react';
 import './NetworkPage.css';
 
 interface ConnectionDto {
@@ -57,6 +57,19 @@ const NetworkPage: React.FC = () => {
   const handleReject = async (id: number) => {
     const token = localStorage.getItem('token');
     await fetch(`http://localhost:5000/api/network/connect/${id}/reject`, { method: 'PUT', headers: { 'Authorization': `Bearer ${token}` } });
+    fetchData();
+  };
+
+  const handleDisconnect = async (id: number) => {
+    if (!window.confirm('Are you sure you want to remove this connection?')) return;
+    const token = localStorage.getItem('token');
+    await fetch(`http://localhost:5000/api/network/connect/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
+    fetchData();
+  };
+
+  const handleUnfollow = async (id: number) => {
+    const token = localStorage.getItem('token');
+    await fetch(`http://localhost:5000/api/network/follow/${id}`, { method: 'DELETE', headers: { 'Authorization': `Bearer ${token}` } });
     fetchData();
   };
 
@@ -122,6 +135,12 @@ const NetworkPage: React.FC = () => {
                         <span style={{ fontSize: '0.8rem', color: '#888' }}>Connected {new Date(c.createdAt).toLocaleDateString()}</span>
                       </div>
                     </div>
+                    <button 
+                      onClick={() => handleDisconnect(otherId)}
+                      style={{ marginTop: '1rem', width: '100%', padding: '0.5rem', background: 'transparent', border: '1px solid #fee2e2', color: '#ef4444', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                    >
+                      <UserMinus size={14} /> Remove Connection
+                    </button>
                   </div>
                );
             })}
@@ -139,6 +158,12 @@ const NetworkPage: React.FC = () => {
                      <h3 onClick={() => navigate(`/profile/${f.followedId}`)} style={{ cursor: 'pointer', margin: 0 }}>{f.followedName}</h3>
                    </div>
                  </div>
+                 <button 
+                   onClick={() => handleUnfollow(f.followedId)}
+                   style={{ marginTop: '1rem', width: '100%', padding: '0.5rem', background: '#f1f5f9', border: 'none', color: '#64748b', borderRadius: '6px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', fontSize: '0.85rem' }}
+                 >
+                   <UserMinus size={14} /> Unfollow
+                 </button>
                </div>
             ))}
           </div>
