@@ -25,6 +25,7 @@ namespace ResCollab.Api.Data
         public DbSet<WorkspaceTask> WorkspaceTasks { get; set; }
         public DbSet<WorkspaceNote> WorkspaceNotes { get; set; }
         public DbSet<WorkspaceFile> WorkspaceFiles { get; set; }
+        public DbSet<MilestoneFeedback> MilestoneFeedbacks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -139,6 +140,20 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(f => f.UploadedById)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // WorkspaceTask (Milestone) <-> MilestoneFeedback
+            modelBuilder.Entity<MilestoneFeedback>()
+                .HasOne(f => f.Milestone)
+                .WithMany()
+                .HasForeignKey(f => f.WorkspaceTaskId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // User <-> MilestoneFeedback
+            modelBuilder.Entity<MilestoneFeedback>()
+                .HasOne(f => f.GivenBy)
+                .WithMany()
+                .HasForeignKey(f => f.GivenById)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
