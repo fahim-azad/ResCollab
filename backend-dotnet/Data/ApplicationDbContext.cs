@@ -26,6 +26,8 @@ namespace ResCollab.Api.Data
         public DbSet<WorkspaceNote> WorkspaceNotes { get; set; }
         public DbSet<WorkspaceFile> WorkspaceFiles { get; set; }
         public DbSet<MilestoneFeedback> MilestoneFeedbacks { get; set; }
+        public DbSet<UserFollow> UserFollows { get; set; }
+        public DbSet<UserConnection> UserConnections { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -154,6 +156,40 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(f => f.GivenById)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // UserFollow
+            modelBuilder.Entity<UserFollow>()
+                .HasOne(uf => uf.Follower)
+                .WithMany()
+                .HasForeignKey(uf => uf.FollowerId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserFollow>()
+                .HasOne(uf => uf.Followed)
+                .WithMany()
+                .HasForeignKey(uf => uf.FollowedId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserFollow>()
+                .HasIndex(uf => new { uf.FollowerId, uf.FollowedId })
+                .IsUnique();
+
+            // UserConnection
+            modelBuilder.Entity<UserConnection>()
+                .HasOne(uc => uc.Requester)
+                .WithMany()
+                .HasForeignKey(uc => uc.RequesterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserConnection>()
+                .HasOne(uc => uc.Target)
+                .WithMany()
+                .HasForeignKey(uc => uc.TargetId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            modelBuilder.Entity<UserConnection>()
+                .HasIndex(uc => new { uc.RequesterId, uc.TargetId })
+                .IsUnique();
         }
     }
 }
