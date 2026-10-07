@@ -1,5 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, CheckCircle, Clock, Flag, User as UserIcon } from 'lucide-react';
+import { Plus, CheckCircle, Clock, Flag, User as UserIcon, MessageSquare } from 'lucide-react';
+
+interface FeedbackDto {
+  id: number;
+  workspaceTaskId: number;
+  givenById: number;
+  givenByName: string;
+  content: string;
+  statusChange: string | null;
+  createdAt: string;
+}
 
 interface MemberDto {
   userId: number;
@@ -34,6 +44,12 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
     dueDate: '',
     isMilestone: false
   });
+
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [selectedTaskForFeedback, setSelectedTaskForFeedback] = useState<TaskDto | null>(null);
+  const [feedbacks, setFeedbacks] = useState<FeedbackDto[]>([]);
+  const [newFeedbackContent, setNewFeedbackContent] = useState('');
+  const [newFeedbackStatus, setNewFeedbackStatus] = useState('');
 
   useEffect(() => {
     fetchTasks();
@@ -97,6 +113,57 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
         body: JSON.stringify({ status: newStatus })
       });
       if (res.ok) {
+        fetchTasks();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const openFeedbackModal = async (task: TaskDto) => {
+    setSelectedTaskForFeedback(task);
+    setNewFeedbackContent('');
+    setNewFeedbackStatus('');
+    setIsFeedbackModalOpen(true);
+    
+    try {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/tasks/${task.id}/feedback`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        setFeedbacks(await res.json());
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const submitFeedback = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedTaskForFeedback) return;
+    try {
+      const token = localStorage.getItem('token');
+      const payload = {
+        content: newFeedbackContent,
+        statusChange: newFeedbackStatus || null
+      };
+
+      const res = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/tasks/${selectedTaskForFeedback.id}/feedback`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify(payload)
+      });
+      
+      if (res.ok) {
+        setNewFeedbackContent('');
+        setNewFeedbackStatus('');
+        
+        const refreshRes = await fetch(`http://localhost:5000/api/workspaces/${workspaceId}/tasks/${selectedTaskForFeedback.id}/feedback`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (refreshRes.ok) setFeedbacks(await refreshRes.json());
+        
         fetchTasks();
       }
     } catch (err) {
@@ -179,7 +246,13 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                <button 
+                  onClick={() => openFeedbackModal(task)}
+                  style={{ background: 'transparent', border: '1px solid #e2e8f0', padding: '0.4rem 0.6rem', borderRadius: '6px', cursor: 'pointer', color: '#64748b', display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.85rem', fontWeight: 500 }}
+                >
+                  <MessageSquare size={14} /> Feedback
+                </button>
                 <select 
                   value={task.status} 
                   onChange={(e) => handleStatusChange(task.id, e.target.value)}
@@ -247,6 +320,57 @@ const WorkspaceTasks: React.FC<WorkspaceTasksProps> = ({ workspaceId, members })
               <div className="modal-footer">
                 <button type="button" className="cancel-btn" onClick={() => setIsModalOpen(false)}>Cancel</button>
                 <button type="submit" className="create-btn" style={{background: 'var(--brand-navy)'}}>Save Task</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {isFeedbackModalOpen && selectedTaskForFeedback && (
+        <div className="modal-overlay animate-fade-in">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '600px' }}>
+            <div className="modal-header">
+              <h2>Feedback: {selectedTaskForFeedback.title}</h2>
+              <button className="close-btn" onClick={() => setIsFeedbackModalOpen(false)}>✕</button>
+            </div>
+            
+            <div style={{ maxHeight: '300px', overflowY: 'auto', marginBottom: '1.5rem', background: '#f8fafc', padding: '1rem', borderRadius: '8px' }}>
+              {feedbacks.length === 0 ? (
+                <p style={{ color: '#888', textAlign: 'center', margin: '2rem 0' }}>No feedback yet.</p>
+              ) : (
+                feedbacks.map(f => (
+                  <div key={f.id} style={{ background: '#fff', padding: '1rem', borderRadius: '8px', marginBottom: '1rem', border: '1px solid #eee' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                      <strong style={{ color: 'var(--brand-navy)' }}>{f.givenByName}</strong>
+                      <span style={{ fontSize: '0.8rem', color: '#888' }}>{new Date(f.createdAt).toLocaleString()}</span>
+                    </div>
+                    <p style={{ margin: '0 0 0.5rem 0', color: '#444' }}>{f.content}</p>
+                    {f.statusChange && (
+                      <span style={{ fontSize: '0.8rem', background: '#e0f2fe', color: '#0284c7', padding: '0.2rem 0.5rem', borderRadius: '4px' }}>
+                        Changed status to: {f.statusChange}
+                      </span>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <form onSubmit={submitFeedback} style={{ borderTop: '1px solid #eee', paddingTop: '1.5rem' }}>
+              <div className="form-group">
+                <label>Add Feedback</label>
+                <textarea className="neo-input" rows={3} required placeholder="Write your feedback..." value={newFeedbackContent} onChange={e => setNewFeedbackContent(e.target.value)}></textarea>
+              </div>
+              <div className="form-group" style={{ marginBottom: '1.5rem' }}>
+                <label>Update Status (Optional)</label>
+                <select className="neo-input" value={newFeedbackStatus} onChange={e => setNewFeedbackStatus(e.target.value)}>
+                  <option value="">-- No change --</option>
+                  <option value="Todo">To Do</option>
+                  <option value="InProgress">In Progress</option>
+                  <option value="Done">Done</option>
+                </select>
+              </div>
+              <div className="modal-footer">
+                <button type="submit" className="create-btn" style={{background: 'var(--brand-blue)'}}>Post Feedback</button>
               </div>
             </form>
           </div>
