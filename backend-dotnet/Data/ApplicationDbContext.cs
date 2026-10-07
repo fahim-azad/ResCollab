@@ -28,6 +28,8 @@ namespace ResCollab.Api.Data
         public DbSet<MilestoneFeedback> MilestoneFeedbacks { get; set; }
         public DbSet<UserFollow> UserFollows { get; set; }
         public DbSet<UserConnection> UserConnections { get; set; }
+        public DbSet<Notification> Notifications { get; set; }
+        public DbSet<Bookmark> Bookmarks { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -189,6 +191,25 @@ namespace ResCollab.Api.Data
 
             modelBuilder.Entity<UserConnection>()
                 .HasIndex(uc => new { uc.RequesterId, uc.TargetId })
+                .IsUnique();
+
+            // Notification
+            modelBuilder.Entity<Notification>()
+                .HasOne(n => n.User)
+                .WithMany()
+                .HasForeignKey(n => n.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Bookmark
+            modelBuilder.Entity<Bookmark>()
+                .HasOne(b => b.User)
+                .WithMany()
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Prevent duplicate bookmarks for the exact same item by the same user
+            modelBuilder.Entity<Bookmark>()
+                .HasIndex(b => new { b.UserId, b.ItemType, b.ItemId })
                 .IsUnique();
         }
     }
