@@ -81,7 +81,7 @@ const Sidebar: React.FC = () => {
               <Bell size={20} /> Notifications
             </span>
             {unreadCount > 0 && (
-              <span style={{ background: '#ef4444', color: '#fff', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>
+              <span className="unread-badge" style={{ background: '#ef4444', color: '#fff', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>
                 {unreadCount}
               </span>
             )}

@@ -40,7 +40,37 @@ namespace ResCollab.Api.Controllers
             }
 
             var bookmarks = await query.OrderByDescending(b => b.CreatedAt).ToListAsync();
-            return Ok(bookmarks);
+            
+            var result = new System.Collections.Generic.List<object>();
+            foreach(var b in bookmarks) {
+                string title = "Unknown Item";
+                string subtitle = "";
+                
+                if (b.ItemType == "Project") {
+                    var proj = await _context.OpenProjects.FindAsync(b.ItemId);
+                    if (proj != null) {
+                        title = proj.Title;
+                        subtitle = proj.Department ?? "General";
+                    }
+                } else if (b.ItemType == "Idea") {
+                    var idea = await _context.ResearchIdeas.FindAsync(b.ItemId);
+                    if (idea != null) {
+                        title = idea.Title;
+                        subtitle = idea.ResearchArea ?? "General";
+                    }
+                }
+
+                result.Add(new {
+                    b.Id,
+                    b.ItemType,
+                    b.ItemId,
+                    b.CreatedAt,
+                    ItemTitle = title,
+                    ItemSubtitle = subtitle
+                });
+            }
+
+            return Ok(result);
         }
 
         public class CreateBookmarkRequest
