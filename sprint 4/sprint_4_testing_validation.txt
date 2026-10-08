@@ -1,0 +1,14 @@
+Sprint 4: Testing & Validation
+
+The following Selenium End-to-End tests were developed to validate the UI/API integration of Sprint 4 features:
+
+1. test_milestone_feedback_workflow.py: 
+Validates the creation of milestone tasks and the ability for users to post feedback within collaborative workspaces.
+
+2. test_ui_api_integration_and_acceptance_criteria.py: 
+A comprehensive suite validating:
+  - Bookmarks API/UI Integration: Bookmarking an idea and validating persistence in the Saved dashboard.
+  - Milestone Feedback Status Updates: Ensuring optional status updates (e.g. marking a task as "Done") within feedback modals correctly sync to the global task tracker and update the Workspace Progress Bar.
+  - Notifications Polling: Injecting API notifications and validating the React frontend's polling, badge rendering, and "Mark as Read" functionality.
+
+Note: Automated Selenium tests are located in the `selenium test/` directory.
