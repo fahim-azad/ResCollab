@@ -65,7 +65,7 @@ namespace ResCollab.Api.Controllers
             var userId = GetUserId();
             var following = await _context.UserFollows
                 .Where(f => f.FollowerId == userId)
-                .Select(f => new { f.FollowedId, f.Followed!.FullName, f.CreatedAt })
+                .Select(f => new { f.FollowedId, FollowedName = f.Followed!.FullName, f.CreatedAt })
                 .ToListAsync();
             return Ok(following);
         }
@@ -76,7 +76,7 @@ namespace ResCollab.Api.Controllers
             var userId = GetUserId();
             var followers = await _context.UserFollows
                 .Where(f => f.FollowedId == userId)
-                .Select(f => new { f.FollowerId, f.Follower!.FullName, f.CreatedAt })
+                .Select(f => new { f.FollowerId, FollowerName = f.Follower!.FullName, f.CreatedAt })
                 .ToListAsync();
             return Ok(followers);
         }
