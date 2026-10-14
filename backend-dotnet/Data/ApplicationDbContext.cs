@@ -49,6 +49,9 @@ namespace ResCollab.Api.Data
         public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
         public DbSet<ChatMessage> ChatMessages { get; set; }
 
+        // Sprint 5 - Publications
+        public DbSet<Publication> Publications { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -336,6 +339,13 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(m => m.SenderId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // Publication <-> Owner (User)
+            modelBuilder.Entity<Publication>()
+                .HasOne(p => p.Owner)
+                .WithMany()
+                .HasForeignKey(p => p.OwnerId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
