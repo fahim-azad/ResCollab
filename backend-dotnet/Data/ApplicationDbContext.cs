@@ -44,6 +44,11 @@ namespace ResCollab.Api.Data
         public DbSet<LaboratoryMember> LaboratoryMembers { get; set; }
         public DbSet<ProjectDirectoryListing> ProjectDirectoryListings { get; set; }
 
+        // Sprint 5 - Chat
+        public DbSet<Conversation> Conversations { get; set; }
+        public DbSet<ConversationParticipant> ConversationParticipants { get; set; }
+        public DbSet<ChatMessage> ChatMessages { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -291,6 +296,46 @@ namespace ResCollab.Api.Data
             modelBuilder.Entity<ProjectDirectoryListing>()
                 .HasIndex(pdl => new { pdl.ItemType, pdl.ItemId })
                 .IsUnique();
+
+            // Conversation <-> Workspace (optional)
+            modelBuilder.Entity<Conversation>()
+                .HasOne(c => c.Workspace)
+                .WithMany()
+                .HasForeignKey(c => c.WorkspaceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // ConversationParticipant <-> Conversation
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.Conversation)
+                .WithMany(c => c.Participants)
+                .HasForeignKey(cp => cp.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ConversationParticipant <-> User
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasOne(cp => cp.User)
+                .WithMany()
+                .HasForeignKey(cp => cp.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Prevent duplicate participants in a conversation
+            modelBuilder.Entity<ConversationParticipant>()
+                .HasIndex(cp => new { cp.ConversationId, cp.UserId })
+                .IsUnique();
+
+            // ChatMessage <-> Conversation
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne(m => m.Conversation)
+                .WithMany(c => c.Messages)
+                .HasForeignKey(m => m.ConversationId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ChatMessage <-> Sender (User)
+            modelBuilder.Entity<ChatMessage>()
+                .HasOne(m => m.Sender)
+                .WithMany()
+                .HasForeignKey(m => m.SenderId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
