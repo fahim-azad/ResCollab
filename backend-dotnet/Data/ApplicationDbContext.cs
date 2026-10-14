@@ -31,6 +31,10 @@ namespace ResCollab.Api.Data
         public DbSet<Notification> Notifications { get; set; }
         public DbSet<Bookmark> Bookmarks { get; set; }
 
+        // Sprint 5 - Collaborator Discovery
+        public DbSet<CollaboratorProfile> CollaboratorProfiles { get; set; }
+        public DbSet<CollaborationOpportunity> CollaborationOpportunities { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -211,6 +215,24 @@ namespace ResCollab.Api.Data
             modelBuilder.Entity<Bookmark>()
                 .HasIndex(b => new { b.UserId, b.ItemType, b.ItemId })
                 .IsUnique();
+
+            // CollaboratorProfile - one per user
+            modelBuilder.Entity<CollaboratorProfile>()
+                .HasOne(cp => cp.User)
+                .WithMany()
+                .HasForeignKey(cp => cp.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<CollaboratorProfile>()
+                .HasIndex(cp => cp.UserId)
+                .IsUnique();
+
+            // CollaborationOpportunity - posted by a user
+            modelBuilder.Entity<CollaborationOpportunity>()
+                .HasOne(co => co.PostedBy)
+                .WithMany()
+                .HasForeignKey(co => co.PostedById)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

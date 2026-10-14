@@ -52,6 +52,108 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("Bookmarks");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.CollaborationOpportunity", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime?>("Deadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<bool>("IsCrossInstitution")
+                        .HasColumnType("bit");
+
+                    b.Property<int>("PostedById")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RequiredExpertise")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("ResearchArea")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostedById");
+
+                    b.ToTable("CollaborationOpportunities");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.CollaboratorProfile", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ExpertiseAreas")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Institution")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsOpenToCollaboration")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("ResearchInterests")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId")
+                        .IsUnique();
+
+                    b.ToTable("CollaboratorProfiles");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.IdeaApplication", b =>
                 {
                     b.Property<int>("Id")
@@ -671,6 +773,28 @@ namespace ResCollab.Api.Migrations
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.Bookmark", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.CollaborationOpportunity", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "PostedBy")
+                        .WithMany()
+                        .HasForeignKey("PostedById")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("PostedBy");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.CollaboratorProfile", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "User")
                         .WithMany()
