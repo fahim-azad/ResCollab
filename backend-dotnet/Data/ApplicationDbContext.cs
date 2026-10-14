@@ -52,6 +52,9 @@ namespace ResCollab.Api.Data
         // Sprint 5 - Publications
         public DbSet<Publication> Publications { get; set; }
 
+        // Sprint 5 - Research Funding
+        public DbSet<FundingOpportunity> FundingOpportunities { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -346,6 +349,13 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(p => p.OwnerId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // FundingOpportunity <-> PostedBy (User, optional)
+            modelBuilder.Entity<FundingOpportunity>()
+                .HasOne(f => f.PostedBy)
+                .WithMany()
+                .HasForeignKey(f => f.PostedById)
+                .OnDelete(DeleteBehavior.SetNull);
         }
     }
 }
