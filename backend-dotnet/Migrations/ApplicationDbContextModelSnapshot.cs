@@ -154,6 +154,53 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("CollaboratorProfiles");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.Department", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("HeadOfDepartment")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("UniversityId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UniversityId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Departments");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.IdeaApplication", b =>
                 {
                     b.Property<int>("Id")
@@ -449,6 +496,55 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("ResearchResourceId");
 
                     b.ToTable("ResourceTags");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.University", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("City")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Country")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("LogoUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Universities");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.User", b =>
@@ -805,6 +901,17 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.Department", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.University", "University")
+                        .WithMany("Departments")
+                        .HasForeignKey("UniversityId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("University");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.IdeaApplication", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "Applicant")
@@ -1051,6 +1158,11 @@ namespace ResCollab.Api.Migrations
             modelBuilder.Entity("ResCollab.Api.Models.ResearchResource", b =>
                 {
                     b.Navigation("Tags");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.University", b =>
+                {
+                    b.Navigation("Departments");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.User", b =>

@@ -35,6 +35,10 @@ namespace ResCollab.Api.Data
         public DbSet<CollaboratorProfile> CollaboratorProfiles { get; set; }
         public DbSet<CollaborationOpportunity> CollaborationOpportunities { get; set; }
 
+        // Sprint 5 - University & Department Profiles
+        public DbSet<University> Universities { get; set; }
+        public DbSet<Department> Departments { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -233,6 +237,18 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(co => co.PostedById)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // University <-> Department
+            modelBuilder.Entity<Department>()
+                .HasOne(d => d.University)
+                .WithMany(u => u.Departments)
+                .HasForeignKey(d => d.UniversityId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique department name within a university
+            modelBuilder.Entity<Department>()
+                .HasIndex(d => new { d.UniversityId, d.Name })
+                .IsUnique();
         }
     }
 }
