@@ -236,6 +236,101 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("IdeaApplications");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Department")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int?>("HeadUserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Institution")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("ResearchFocus")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Website")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("HeadUserId");
+
+                    b.ToTable("Laboratories");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.LaboratoryMember", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("JoinedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("LaboratoryId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("LaboratoryId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("LaboratoryMembers");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.MilestoneFeedback", b =>
                 {
                     b.Property<int>("Id")
@@ -392,6 +487,46 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("ProjectId");
 
                     b.ToTable("ProjectApplications");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ProjectDirectoryListing", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("ItemId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ItemType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("LaboratoryId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Visibility")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("LaboratoryId");
+
+                    b.HasIndex("ItemType", "ItemId")
+                        .IsUnique();
+
+                    b.ToTable("ProjectDirectoryListings");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>
@@ -931,6 +1066,35 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Idea");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "Head")
+                        .WithMany()
+                        .HasForeignKey("HeadUserId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Head");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.LaboratoryMember", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.Laboratory", "Laboratory")
+                        .WithMany("Members")
+                        .HasForeignKey("LaboratoryId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Laboratory");
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.MilestoneFeedback", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "GivenBy")
@@ -989,6 +1153,16 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Applicant");
 
                     b.Navigation("Project");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ProjectDirectoryListing", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.Laboratory", "Laboratory")
+                        .WithMany()
+                        .HasForeignKey("LaboratoryId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Laboratory");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>
@@ -1143,6 +1317,11 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Assignee");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
+                {
+                    b.Navigation("Members");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.OpenProject", b =>

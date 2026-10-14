@@ -39,6 +39,11 @@ namespace ResCollab.Api.Data
         public DbSet<University> Universities { get; set; }
         public DbSet<Department> Departments { get; set; }
 
+        // Sprint 5 - Research Directory
+        public DbSet<Laboratory> Laboratories { get; set; }
+        public DbSet<LaboratoryMember> LaboratoryMembers { get; set; }
+        public DbSet<ProjectDirectoryListing> ProjectDirectoryListings { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -248,6 +253,43 @@ namespace ResCollab.Api.Data
             // Unique department name within a university
             modelBuilder.Entity<Department>()
                 .HasIndex(d => new { d.UniversityId, d.Name })
+                .IsUnique();
+
+            // Laboratory <-> Head (User)
+            modelBuilder.Entity<Laboratory>()
+                .HasOne(l => l.Head)
+                .WithMany()
+                .HasForeignKey(l => l.HeadUserId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Laboratory <-> LaboratoryMember
+            modelBuilder.Entity<LaboratoryMember>()
+                .HasOne(lm => lm.Laboratory)
+                .WithMany(l => l.Members)
+                .HasForeignKey(lm => lm.LaboratoryId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            modelBuilder.Entity<LaboratoryMember>()
+                .HasOne(lm => lm.User)
+                .WithMany()
+                .HasForeignKey(lm => lm.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Prevent duplicate membership in the same lab
+            modelBuilder.Entity<LaboratoryMember>()
+                .HasIndex(lm => new { lm.LaboratoryId, lm.UserId })
+                .IsUnique();
+
+            // ProjectDirectoryListing <-> Laboratory (optional)
+            modelBuilder.Entity<ProjectDirectoryListing>()
+                .HasOne(pdl => pdl.Laboratory)
+                .WithMany()
+                .HasForeignKey(pdl => pdl.LaboratoryId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // Prevent duplicate listings for the same item
+            modelBuilder.Entity<ProjectDirectoryListing>()
+                .HasIndex(pdl => new { pdl.ItemType, pdl.ItemId })
                 .IsUnique();
         }
     }
