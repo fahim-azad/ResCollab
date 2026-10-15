@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { 
   Building, GraduationCap, Search, PlusCircle, MapPin, ExternalLink, 
   Edit3, Trash2, X, Check, AlertCircle, Globe, RefreshCw, Eye, 
-  BookOpen, Users, CheckCircle2 
+  BookOpen, Users, CheckCircle2, Lock, Info, Filter 
 } from 'lucide-react';
 import './UniversityManagement.css';
 
@@ -11,6 +11,7 @@ const API = 'http://localhost:5000/api';
 export interface DepartmentData {
   id: number;
   universityId: number;
+  universityName?: string;
   name: string;
   description: string | null;
   headOfDepartment: string | null;
@@ -35,7 +36,7 @@ export interface UniversityData {
 
 export const UniversityManagement: React.FC = () => {
   // Navigation & View Tab
-  const [activeTab, setActiveTab] = useState<'directory' | 'create' | 'affiliation'>('directory');
+  const [activeTab, setActiveTab] = useState<'directory' | 'departments' | 'create' | 'affiliation'>('directory');
 
   // Universities state
   const [universities, setUniversities] = useState<UniversityData[]>([]);
@@ -43,13 +44,25 @@ export const UniversityManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [countryFilter, setCountryFilter] = useState<string>('');
 
-  // Modals state
+  // Department Explorer state [T-016.4]
+  const [deptSearchTerm, setDeptSearchTerm] = useState<string>('');
+  const [deptUniFilter, setDeptUniFilter] = useState<string>('All');
+  const [deptVisibilityFilter, setDeptVisibilityFilter] = useState<'All' | 'Public' | 'Private'>('All');
+  const [allDepartments, setAllDepartments] = useState<DepartmentData[]>([]);
+  const [loadingDepts, setLoadingDepts] = useState<boolean>(false);
+
+  // Selected Department for Information Modal [T-016.4]
+  const [infoDept, setInfoDept] = useState<DepartmentData | null>(null);
+
+  // University Detail Modal state
   const [selectedUniversity, setSelectedUniversity] = useState<UniversityData | null>(null);
+  const [uniModalVisFilter, setUniModalVisFilter] = useState<'All' | 'Public' | 'Private'>('All');
   const [isDetailModalOpen, setIsDetailModalOpen] = useState<boolean>(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isAddDeptModalOpen, setIsAddDeptModalOpen] = useState<boolean>(false);
   const [isEditDeptModalOpen, setIsEditDeptModalOpen] = useState<boolean>(false);
   const [selectedDept, setSelectedDept] = useState<DepartmentData | null>(null);
+  const [targetUniIdForNewDept, setTargetUniIdForNewDept] = useState<number | null>(null);
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<{
@@ -116,7 +129,7 @@ export const UniversityManagement: React.FC = () => {
         }
       });
       if (res.ok) {
-        const data = await res.json();
+        const data: UniversityData[] = await res.json();
         setUniversities(data);
       } else {
         showAlert('error', 'Failed to fetch universities.');
@@ -125,6 +138,37 @@ export const UniversityManagement: React.FC = () => {
       showAlert('error', 'Network error connecting to university service.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper: fetch all departments across universities for Department Explorer [T-016.4]
+  const fetchAllDepartments = async (unis: UniversityData[]) => {
+    setLoadingDepts(true);
+    try {
+      const token = localStorage.getItem('token');
+      const deptPromises = unis.map(async (u) => {
+        try {
+          const res = await fetch(`${API}/university/${u.id}/departments`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          if (res.ok) {
+            const depts: DepartmentData[] = await res.json();
+            return depts.map(d => ({
+              ...d,
+              universityName: u.name
+            }));
+          }
+          return [];
+        } catch {
+          return [];
+        }
+      });
+
+      const results = await Promise.all(deptPromises);
+      const flattened = results.flat();
+      setAllDepartments(flattened);
+    } finally {
+      setLoadingDepts(false);
     }
   };
 
@@ -172,6 +216,13 @@ export const UniversityManagement: React.FC = () => {
     fetchUserProfile();
   }, [countryFilter]);
 
+  // When universities list updates or departments tab opens, fetch all departments
+  useEffect(() => {
+    if (universities.length > 0) {
+      fetchAllDepartments(universities);
+    }
+  }, [universities]);
+
   // Distinct countries list from loaded universities
   const availableCountries = useMemo(() => {
     const defaultCountries = ['United States', 'United Kingdom', 'Canada', 'Australia', 'Germany', 'Japan', 'Bangladesh', 'Sri Lanka', 'India'];
@@ -182,10 +233,10 @@ export const UniversityManagement: React.FC = () => {
   // Departments for chosen affiliation university
   const chosenUniDepartments = useMemo(() => {
     const matched = universities.find(u => u.name.toLowerCase() === affiliationUniChoice.toLowerCase());
-    return matched?.departments || [];
-  }, [universities, affiliationUniChoice]);
+    return matched?.departments || allDepartments.filter(d => d.universityName?.toLowerCase() === affiliationUniChoice.toLowerCase());
+  }, [universities, allDepartments, affiliationUniChoice]);
 
-  // Search filter
+  // Filtered universities
   const filteredUniversities = useMemo(() => {
     return universities.filter(u => {
       const matchesSearch = searchTerm.trim() === '' || 
@@ -195,6 +246,90 @@ export const UniversityManagement: React.FC = () => {
       return matchesSearch;
     });
   }, [universities, searchTerm]);
+
+  // Filtered departments for Department Explorer [T-016.4]
+  const filteredDepartments = useMemo(() => {
+    return allDepartments.filter(dept => {
+      const matchesUni = deptUniFilter === 'All' || dept.universityId.toString() === deptUniFilter;
+      const matchesVis = deptVisibilityFilter === 'All' || 
+        dept.visibility.toLowerCase() === deptVisibilityFilter.toLowerCase();
+      const matchesSearch = deptSearchTerm.trim() === '' ||
+        dept.name.toLowerCase().includes(deptSearchTerm.toLowerCase()) ||
+        (dept.headOfDepartment && dept.headOfDepartment.toLowerCase().includes(deptSearchTerm.toLowerCase())) ||
+        (dept.description && dept.description.toLowerCase().includes(deptSearchTerm.toLowerCase())) ||
+        (dept.universityName && dept.universityName.toLowerCase().includes(deptSearchTerm.toLowerCase()));
+
+      return matchesUni && matchesVis && matchesSearch;
+    });
+  }, [allDepartments, deptUniFilter, deptVisibilityFilter, deptSearchTerm]);
+
+  // Quick Department Visibility Toggle [T-016.4]
+  const handleToggleDepartmentVisibility = async (dept: DepartmentData) => {
+    const newVisibility = dept.visibility.toLowerCase() === 'public' ? 'Private' : 'Public';
+    const token = localStorage.getItem('token');
+
+    try {
+      // Call PATCH endpoint on backend
+      const res = await fetch(`${API}/university/${dept.universityId}/departments/${dept.id}/visibility`, {
+        method: 'PATCH',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ visibility: newVisibility })
+      });
+
+      if (res.ok) {
+        showAlert('success', `Department "${dept.name}" visibility set to ${newVisibility}!`);
+
+        // Update local departments state immediately
+        setAllDepartments(prev => prev.map(d => 
+          d.id === dept.id ? { ...d, visibility: newVisibility } : d
+        ));
+
+        // Update selectedUniversity if open
+        if (selectedUniversity && selectedUniversity.id === dept.universityId) {
+          setSelectedUniversity(prev => prev ? ({
+            ...prev,
+            departments: prev.departments?.map(d => d.id === dept.id ? { ...d, visibility: newVisibility } : d)
+          }) : null);
+        }
+
+        // Update info modal if open
+        if (infoDept && infoDept.id === dept.id) {
+          setInfoDept(prev => prev ? { ...prev, visibility: newVisibility } : null);
+        }
+      } else {
+        // Fallback to PUT if PATCH fails
+        const updateRes = await fetch(`${API}/university/${dept.universityId}/departments/${dept.id}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            name: dept.name,
+            description: dept.description,
+            headOfDepartment: dept.headOfDepartment,
+            website: dept.website,
+            visibility: newVisibility
+          })
+        });
+
+        if (updateRes.ok) {
+          showAlert('success', `Department "${dept.name}" visibility set to ${newVisibility}!`);
+          setAllDepartments(prev => prev.map(d => d.id === dept.id ? { ...d, visibility: newVisibility } : d));
+          if (infoDept && infoDept.id === dept.id) {
+            setInfoDept(prev => prev ? { ...prev, visibility: newVisibility } : null);
+          }
+        } else {
+          showAlert('error', 'Failed to toggle department visibility.');
+        }
+      }
+    } catch {
+      showAlert('error', 'Network error while updating department visibility.');
+    }
+  };
 
   // Handle Create University
   const handleCreateUniversity = async (e: React.FormEvent) => {
@@ -310,8 +445,9 @@ export const UniversityManagement: React.FC = () => {
         });
         if (res.ok) {
           showAlert('success', 'Department deleted.');
+          setAllDepartments(prev => prev.filter(d => d.id !== deleteTarget.id));
+          if (infoDept && infoDept.id === deleteTarget.id) setInfoDept(null);
           await fetchUniversityDetails(deleteTarget.universityId);
-          await fetchUniversities();
         } else {
           showAlert('error', 'Failed to delete department.');
         }
@@ -323,10 +459,28 @@ export const UniversityManagement: React.FC = () => {
     }
   };
 
+  // Open Add Department Modal (with optional specific university ID)
+  const openAddDepartmentModal = (universityId?: number) => {
+    const targetId = universityId || (selectedUniversity ? selectedUniversity.id : (universities[0]?.id || 0));
+    setTargetUniIdForNewDept(targetId);
+    setDeptForm({
+      name: '',
+      description: '',
+      headOfDepartment: '',
+      website: '',
+      visibility: 'Public'
+    });
+    setIsAddDeptModalOpen(true);
+  };
+
   // Handle Add Department
   const handleAddDepartment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUniversity) return;
+    const uniId = targetUniIdForNewDept || selectedUniversity?.id;
+    if (!uniId) {
+      showAlert('error', 'No university selected for department.');
+      return;
+    }
     if (!deptForm.name.trim()) {
       showAlert('error', 'Department name is required.');
       return;
@@ -335,7 +489,7 @@ export const UniversityManagement: React.FC = () => {
     setSubmittingDept(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/university/${selectedUniversity.id}/departments`, {
+      const res = await fetch(`${API}/university/${uniId}/departments`, {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -345,11 +499,20 @@ export const UniversityManagement: React.FC = () => {
       });
 
       if (res.ok) {
-        showAlert('success', 'Department added successfully!');
-        setDeptForm({ name: '', description: '', headOfDepartment: '', website: '', visibility: 'Public' });
+        const newDept = await res.json();
+        const matchedUni = universities.find(u => u.id === uniId);
+        showAlert('success', `Department "${deptForm.name}" added with ${deptForm.visibility} visibility!`);
         setIsAddDeptModalOpen(false);
-        await fetchUniversityDetails(selectedUniversity.id);
-        await fetchUniversities();
+
+        // Add to department explorer list
+        setAllDepartments(prev => [
+          ...prev,
+          { ...newDept, universityName: matchedUni?.name || 'Institution' }
+        ]);
+
+        if (selectedUniversity && selectedUniversity.id === uniId) {
+          await fetchUniversityDetails(uniId);
+        }
       } else {
         const err = await res.text();
         showAlert('error', err || 'Failed to add department.');
@@ -377,7 +540,7 @@ export const UniversityManagement: React.FC = () => {
   // Handle Update Department
   const handleUpdateDept = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedUniversity || !selectedDept) return;
+    if (!selectedDept) return;
     if (!deptForm.name.trim()) {
       showAlert('error', 'Department name is required.');
       return;
@@ -386,7 +549,7 @@ export const UniversityManagement: React.FC = () => {
     setSubmittingDept(true);
     try {
       const token = localStorage.getItem('token');
-      const res = await fetch(`${API}/university/${selectedUniversity.id}/departments/${selectedDept.id}`, {
+      const res = await fetch(`${API}/university/${selectedDept.universityId}/departments/${selectedDept.id}`, {
         method: 'PUT',
         headers: {
           Authorization: `Bearer ${token}`,
@@ -396,10 +559,20 @@ export const UniversityManagement: React.FC = () => {
       });
 
       if (res.ok) {
-        showAlert('success', 'Department updated successfully!');
+        showAlert('success', 'Department details updated!');
         setIsEditDeptModalOpen(false);
-        await fetchUniversityDetails(selectedUniversity.id);
-        await fetchUniversities();
+
+        setAllDepartments(prev => prev.map(d => 
+          d.id === selectedDept.id ? { ...d, ...deptForm } : d
+        ));
+
+        if (infoDept && infoDept.id === selectedDept.id) {
+          setInfoDept(prev => prev ? { ...prev, ...deptForm } : null);
+        }
+
+        if (selectedUniversity) {
+          await fetchUniversityDetails(selectedUniversity.id);
+        }
       } else {
         const err = await res.text();
         showAlert('error', err || 'Failed to update department.');
@@ -466,16 +639,20 @@ export const UniversityManagement: React.FC = () => {
       {/* Header */}
       <div className="uni-header">
         <div className="uni-header-text">
-          <h1>University & Institution Management</h1>
+          <h1>University & Department Profile Management</h1>
           <p>
-            Explore accredited academic institutions, browse academic departments, and manage
-            your institutional affiliation across the research network.
+            Explore registered academic institutions, configure academic department information,
+            and manage department visibility controls across the collaborative research network.
           </p>
         </div>
         <div className="uni-header-stats">
           <div className="uni-stat-pill">
             <Building size={18} color="var(--brand-cyan, #009acc)" />
-            <span>Total Institutions: <span className="stat-number">{universities.length}</span></span>
+            <span>Institutions: <span className="stat-number">{universities.length}</span></span>
+          </div>
+          <div className="uni-stat-pill">
+            <BookOpen size={18} color="#2563eb" />
+            <span>Departments: <span className="stat-number">{allDepartments.length}</span></span>
           </div>
           {userAffiliation.university && (
             <div className="uni-stat-pill">
@@ -504,6 +681,16 @@ export const UniversityManagement: React.FC = () => {
           <Building size={18} />
           Directory & Institutions
           <span className="uni-tab-badge">{filteredUniversities.length}</span>
+        </button>
+
+        <button
+          id="tab-btn-departments"
+          className={`uni-tab-btn ${activeTab === 'departments' ? 'active' : ''}`}
+          onClick={() => setActiveTab('departments')}
+        >
+          <BookOpen size={18} />
+          Departments & Visibility
+          <span className="uni-tab-badge">{filteredDepartments.length}</span>
         </button>
 
         <button
@@ -612,6 +799,8 @@ export const UniversityManagement: React.FC = () => {
                 const isCurrentAffiliation =
                   userAffiliation.university.toLowerCase() === uni.name.toLowerCase();
 
+                const uniDepts = allDepartments.filter(d => d.universityId === uni.id);
+
                 return (
                   <div key={uni.id} className="uni-card" id={`uni-card-${uni.id}`}>
                     <div>
@@ -645,6 +834,10 @@ export const UniversityManagement: React.FC = () => {
                       <div className="uni-card-meta">
                         <span className="uni-badge-active">
                           <Check size={12} /> {uni.status || 'Active'}
+                        </span>
+
+                        <span className="uni-badge-dept-count">
+                          <BookOpen size={12} /> {uniDepts.length} {uniDepts.length === 1 ? 'Dept' : 'Depts'}
                         </span>
 
                         {uni.website && (
@@ -716,7 +909,215 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── TAB 2: REGISTER UNIVERSITY ─── */}
+      {/* ─── TAB 2: DEPARTMENTS & VISIBILITY EXPLORER [T-016.4] ─── */}
+      {activeTab === 'departments' && (
+        <div>
+          {/* Department Explorer Filter Bar */}
+          <div className="uni-filter-bar">
+            <div className="uni-search-box">
+              <Search size={18} />
+              <input
+                id="input-dept-search"
+                type="text"
+                placeholder="Search departments by name, head of department, or focus areas..."
+                className="uni-search-input"
+                value={deptSearchTerm}
+                onChange={e => setDeptSearchTerm(e.target.value)}
+              />
+            </div>
+
+            {/* University Selector */}
+            <select
+              id="select-dept-university"
+              className="uni-select-filter"
+              value={deptUniFilter}
+              onChange={e => setDeptUniFilter(e.target.value)}
+            >
+              <option value="All">All Universities ({universities.length})</option>
+              {universities.map(u => (
+                <option key={u.id} value={u.id.toString()}>{u.name}</option>
+              ))}
+            </select>
+
+            {/* Visibility Filter Chips */}
+            <div className="visibility-filter-chips">
+              <button
+                id="vis-chip-all"
+                className={`vis-chip ${deptVisibilityFilter === 'All' ? 'active' : ''}`}
+                onClick={() => setDeptVisibilityFilter('All')}
+              >
+                <Filter size={13} /> All ({allDepartments.length})
+              </button>
+              <button
+                id="vis-chip-public"
+                className={`vis-chip public ${deptVisibilityFilter === 'Public' ? 'active public' : ''}`}
+                onClick={() => setDeptVisibilityFilter('Public')}
+              >
+                <Globe size={13} /> Public ({allDepartments.filter(d => d.visibility?.toLowerCase() === 'public').length})
+              </button>
+              <button
+                id="vis-chip-private"
+                className={`vis-chip private ${deptVisibilityFilter === 'Private' ? 'active private' : ''}`}
+                onClick={() => setDeptVisibilityFilter('Private')}
+              >
+                <Lock size={13} /> Private ({allDepartments.filter(d => d.visibility?.toLowerCase() === 'private').length})
+              </button>
+            </div>
+
+            <button
+              id="btn-open-add-dept-from-explorer"
+              className="uni-action-btn-primary"
+              onClick={() => openAddDepartmentModal(deptUniFilter !== 'All' ? parseInt(deptUniFilter) : undefined)}
+            >
+              <PlusCircle size={16} /> Add Department
+            </button>
+          </div>
+
+          {/* Department Information & Visibility Banner */}
+          <div className="dept-info-banner">
+            <Info size={18} color="var(--brand-cyan, #009acc)" style={{ flexShrink: 0 }} />
+            <div>
+              <strong>Department Visibility System:</strong> Departments set to <strong>Public</strong> are discoverable platform-wide across researcher search, supervisor matching, and cross-university collaboration. Departments set to <strong>Private</strong> are internal to institutional staff and faculty.
+            </div>
+          </div>
+
+          {/* Department Cards Grid */}
+          {loadingDepts ? (
+            <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+              <RefreshCw size={28} className="animate-spin" style={{ marginBottom: '0.8rem' }} />
+              <p>Loading departments and visibility configurations...</p>
+            </div>
+          ) : filteredDepartments.length === 0 ? (
+            <div className="uni-empty-state">
+              <BookOpen size={48} />
+              <h3>No departments found</h3>
+              <p>
+                {deptSearchTerm || deptVisibilityFilter !== 'All' || deptUniFilter !== 'All'
+                  ? 'No departments match your active visibility or search filters.'
+                  : 'No academic departments have been registered yet.'}
+              </p>
+              <button
+                id="btn-empty-add-dept"
+                className="uni-action-btn-primary"
+                style={{ margin: '0 auto' }}
+                onClick={() => openAddDepartmentModal()}
+              >
+                <PlusCircle size={16} /> Add First Department
+              </button>
+            </div>
+          ) : (
+            <div className="dept-explorer-grid">
+              {filteredDepartments.map(dept => {
+                const isPublic = dept.visibility?.toLowerCase() === 'public';
+
+                return (
+                  <div
+                    key={dept.id}
+                    className={`dept-explorer-card ${isPublic ? 'public-border' : 'private-border'}`}
+                    id={`dept-explorer-card-${dept.id}`}
+                  >
+                    <div>
+                      {/* University Tag */}
+                      <div className="dept-card-institution-tag">
+                        <Building size={12} />
+                        <span>{dept.universityName || 'Institution'}</span>
+                      </div>
+
+                      {/* Header Row: Name & Visibility Badge */}
+                      <div className="dept-card-header-row">
+                        <h3 className="dept-card-name-title">{dept.name}</h3>
+                        <span className={`dept-visibility-badge ${isPublic ? 'public' : 'private'}`}>
+                          {isPublic ? <Globe size={13} /> : <Lock size={13} />}
+                          {isPublic ? 'Public' : 'Private'}
+                        </span>
+                      </div>
+
+                      {/* Metadata Row */}
+                      <div className="dept-meta-row">
+                        {dept.headOfDepartment && (
+                          <span>
+                            <Users size={13} /> Head: <strong>{dept.headOfDepartment}</strong>
+                          </span>
+                        )}
+                        {dept.website && (
+                          <a
+                            href={dept.website.startsWith('http') ? dept.website : `https://${dept.website}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{ color: 'var(--brand-cyan, #009acc)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
+                          >
+                            <ExternalLink size={13} /> Portal Link
+                          </a>
+                        )}
+                      </div>
+
+                      {/* Description */}
+                      <p className="dept-desc">
+                        {dept.description || 'Department focus areas and research laboratory details.'}
+                      </p>
+                    </div>
+
+                    {/* Bottom Action Controls */}
+                    <div style={{ marginTop: '1rem', paddingTop: '0.85rem', borderTop: '1px solid #f1f5f9' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                        <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Visibility Control:</span>
+                        {/* Quick Toggle Button */}
+                        <button
+                          id={`btn-toggle-vis-${dept.id}`}
+                          className={`dept-visibility-toggle-btn ${isPublic ? 'to-private' : 'to-public'}`}
+                          title={`Click to change visibility to ${isPublic ? 'Private' : 'Public'}`}
+                          onClick={() => handleToggleDepartmentVisibility(dept)}
+                        >
+                          {isPublic ? (
+                            <>
+                              <Lock size={13} /> Switch to Private
+                            </>
+                          ) : (
+                            <>
+                              <Globe size={13} /> Make Public
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      <div className="dept-actions">
+                        <button
+                          id={`btn-info-dept-${dept.id}`}
+                          className="dept-btn-action"
+                          onClick={() => setInfoDept(dept)}
+                        >
+                          <Info size={13} /> Inspect Info
+                        </button>
+                        <button
+                          id={`btn-edit-dept-card-${dept.id}`}
+                          className="dept-btn-action"
+                          onClick={() => openEditDept(dept)}
+                        >
+                          <Edit3 size={13} /> Edit
+                        </button>
+                        <button
+                          id={`btn-delete-dept-card-${dept.id}`}
+                          className="dept-btn-action danger"
+                          onClick={() => setDeleteTarget({
+                            type: 'department',
+                            id: dept.id,
+                            name: dept.name,
+                            universityId: dept.universityId
+                          })}
+                        >
+                          <Trash2 size={13} /> Delete
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ─── TAB 3: REGISTER UNIVERSITY ─── */}
       {activeTab === 'create' && (
         <div className="uni-form-layout">
           <div className="uni-form-card">
@@ -888,7 +1289,7 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── TAB 3: MY AFFILIATION ─── */}
+      {/* ─── TAB 4: MY AFFILIATION ─── */}
       {activeTab === 'affiliation' && (
         <div className="affiliation-card">
           <div className="affiliation-current-status">
@@ -954,7 +1355,9 @@ export const UniversityManagement: React.FC = () => {
                     >
                       <option value="">-- Select Department --</option>
                       {chosenUniDepartments.map(d => (
-                        <option key={d.id} value={d.name}>{d.name}</option>
+                        <option key={d.id} value={d.name}>
+                          {d.name} {d.visibility?.toLowerCase() === 'private' ? '(Private)' : ''}
+                        </option>
                       ))}
                     </select>
                   ) : (
@@ -1064,23 +1467,45 @@ export const UniversityManagement: React.FC = () => {
                 </p>
               </div>
 
-              {/* Department Management Section */}
+              {/* Department Management Section [T-016.4] */}
               <div className="dept-section-header">
                 <h3>
                   <BookOpen size={18} />
                   Academic Departments & Faculties ({selectedUniversity.departments?.length || 0})
                 </h3>
-                <button
-                  id="btn-add-department"
-                  className="uni-action-btn-primary"
-                  style={{ fontSize: '0.85rem', padding: '0.45rem 0.9rem' }}
-                  onClick={() => {
-                    setDeptForm({ name: '', description: '', headOfDepartment: '', website: '', visibility: 'Public' });
-                    setIsAddDeptModalOpen(true);
-                  }}
-                >
-                  <PlusCircle size={15} /> Add Department
-                </button>
+
+                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                  {/* Visibility Filter chips inside modal */}
+                  <div className="visibility-filter-chips">
+                    <button
+                      className={`vis-chip ${uniModalVisFilter === 'All' ? 'active' : ''}`}
+                      onClick={() => setUniModalVisFilter('All')}
+                    >
+                      All
+                    </button>
+                    <button
+                      className={`vis-chip public ${uniModalVisFilter === 'Public' ? 'active public' : ''}`}
+                      onClick={() => setUniModalVisFilter('Public')}
+                    >
+                      <Globe size={11} /> Public
+                    </button>
+                    <button
+                      className={`vis-chip private ${uniModalVisFilter === 'Private' ? 'active private' : ''}`}
+                      onClick={() => setUniModalVisFilter('Private')}
+                    >
+                      <Lock size={11} /> Private
+                    </button>
+                  </div>
+
+                  <button
+                    id="btn-add-department"
+                    className="uni-action-btn-primary"
+                    style={{ fontSize: '0.85rem', padding: '0.45rem 0.9rem' }}
+                    onClick={() => openAddDepartmentModal(selectedUniversity.id)}
+                  >
+                    <PlusCircle size={15} /> Add Department
+                  </button>
+                </div>
               </div>
 
               {(!selectedUniversity.departments || selectedUniversity.departments.length === 0) ? (
@@ -1093,60 +1518,95 @@ export const UniversityManagement: React.FC = () => {
                 </div>
               ) : (
                 <div className="dept-list">
-                  {selectedUniversity.departments.map(dept => (
-                    <div key={dept.id} className="dept-card" id={`dept-card-${dept.id}`}>
-                      <div className="dept-card-top">
-                        <div className="dept-card-name">{dept.name}</div>
-                        <span className={`dept-visibility-badge ${dept.visibility?.toLowerCase() === 'private' ? 'private' : 'public'}`}>
-                          {dept.visibility || 'Public'}
-                        </span>
-                      </div>
+                  {selectedUniversity.departments
+                    .filter(dept => uniModalVisFilter === 'All' || dept.visibility?.toLowerCase() === uniModalVisFilter.toLowerCase())
+                    .map(dept => {
+                      const isPublic = dept.visibility?.toLowerCase() === 'public';
 
-                      <div className="dept-meta-row">
-                        {dept.headOfDepartment && (
-                          <span>
-                            <Users size={14} /> Head: {dept.headOfDepartment}
-                          </span>
-                        )}
-                        {dept.website && (
-                          <a
-                            href={dept.website.startsWith('http') ? dept.website : `https://${dept.website}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{ color: 'var(--brand-cyan, #009acc)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
-                          >
-                            <ExternalLink size={13} /> Department Portal
-                          </a>
-                        )}
-                      </div>
-
-                      {dept.description && (
-                        <p className="dept-desc">{dept.description}</p>
-                      )}
-
-                      <div className="dept-actions">
-                        <button
-                          id={`btn-edit-dept-${dept.id}`}
-                          className="dept-btn-action"
-                          onClick={() => openEditDept(dept)}
+                      return (
+                        <div
+                          key={dept.id}
+                          className={`dept-card ${isPublic ? 'public-border' : 'private-border'}`}
+                          id={`dept-card-${dept.id}`}
                         >
-                          <Edit3 size={13} /> Edit
-                        </button>
-                        <button
-                          id={`btn-delete-dept-${dept.id}`}
-                          className="dept-btn-action danger"
-                          onClick={() => setDeleteTarget({
-                            type: 'department',
-                            id: dept.id,
-                            name: dept.name,
-                            universityId: selectedUniversity.id
-                          })}
-                        >
-                          <Trash2 size={13} /> Delete
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                          <div className="dept-card-top">
+                            <div className="dept-card-name">{dept.name}</div>
+                            <span className={`dept-visibility-badge ${isPublic ? 'public' : 'private'}`}>
+                              {isPublic ? <Globe size={12} /> : <Lock size={12} />}
+                              {isPublic ? 'Public' : 'Private'}
+                            </span>
+                          </div>
+
+                          <div className="dept-meta-row">
+                            {dept.headOfDepartment && (
+                              <span>
+                                <Users size={14} /> Head: {dept.headOfDepartment}
+                              </span>
+                            )}
+                            {dept.website && (
+                              <a
+                                href={dept.website.startsWith('http') ? dept.website : `https://${dept.website}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: 'var(--brand-cyan, #009acc)', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', textDecoration: 'none' }}
+                              >
+                                <ExternalLink size={13} /> Department Portal
+                              </a>
+                            )}
+                          </div>
+
+                          {dept.description && (
+                            <p className="dept-desc">{dept.description}</p>
+                          )}
+
+                          <div className="dept-actions">
+                            <button
+                              id={`btn-modal-toggle-vis-${dept.id}`}
+                              className={`dept-visibility-toggle-btn ${isPublic ? 'to-private' : 'to-public'}`}
+                              onClick={() => handleToggleDepartmentVisibility({
+                                ...dept,
+                                universityId: selectedUniversity.id
+                              })}
+                            >
+                              {isPublic ? <Lock size={12} /> : <Globe size={12} />}
+                              {isPublic ? 'Set Private' : 'Set Public'}
+                            </button>
+
+                            <button
+                              id={`btn-modal-info-dept-${dept.id}`}
+                              className="dept-btn-action"
+                              onClick={() => setInfoDept({
+                                ...dept,
+                                universityId: selectedUniversity.id,
+                                universityName: selectedUniversity.name
+                              })}
+                            >
+                              <Info size={13} /> Info
+                            </button>
+
+                            <button
+                              id={`btn-edit-dept-${dept.id}`}
+                              className="dept-btn-action"
+                              onClick={() => openEditDept(dept)}
+                            >
+                              <Edit3 size={13} /> Edit
+                            </button>
+                            <button
+                              id={`btn-delete-dept-${dept.id}`}
+                              className="dept-btn-action danger"
+                              onClick={() => setDeleteTarget({
+                                type: 'department',
+                                id: dept.id,
+                                name: dept.name,
+                                universityId: selectedUniversity.id
+                              })}
+                            >
+                              <Trash2 size={13} /> Delete
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                 </div>
               )}
             </div>
@@ -1174,7 +1634,154 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL 2: EDIT UNIVERSITY ─── */}
+      {/* ─── MODAL 2: DEPARTMENT INFORMATION & VISIBILITY MODAL [T-016.4] ─── */}
+      {infoDept && (
+        <div className="uni-modal-overlay" onClick={() => setInfoDept(null)}>
+          <div className="uni-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="uni-modal-header">
+              <h2>
+                <BookOpen size={20} color="var(--brand-cyan, #009acc)" />
+                Department Information & Visibility
+              </h2>
+              <button
+                id="btn-close-dept-info-modal"
+                className="uni-modal-close"
+                onClick={() => setInfoDept(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            <div className="uni-modal-body">
+              {/* Header Card */}
+              <div className="dept-detail-header-card">
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.6rem' }}>
+                  <div>
+                    <div className="dept-card-institution-tag">
+                      <Building size={13} />
+                      <span>{infoDept.universityName || 'Affiliated Institution'}</span>
+                    </div>
+                    <h2 style={{ fontSize: '1.45rem', color: 'var(--brand-navy, #0e3065)', margin: '0.2rem 0' }}>
+                      {infoDept.name}
+                    </h2>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                    <span className={`dept-visibility-badge ${infoDept.visibility?.toLowerCase() === 'public' ? 'public' : 'private'}`}>
+                      {infoDept.visibility?.toLowerCase() === 'public' ? <Globe size={13} /> : <Lock size={13} />}
+                      {infoDept.visibility || 'Public'}
+                    </span>
+                    <button
+                      id="btn-info-modal-toggle-vis"
+                      className={`dept-visibility-toggle-btn ${infoDept.visibility?.toLowerCase() === 'public' ? 'to-private' : 'to-public'}`}
+                      onClick={() => handleToggleDepartmentVisibility(infoDept)}
+                    >
+                      {infoDept.visibility?.toLowerCase() === 'public' ? <Lock size={13} /> : <Globe size={13} />}
+                      {infoDept.visibility?.toLowerCase() === 'public' ? 'Set Private' : 'Set Public'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Visibility Explanation Banner */}
+                <div className={`dept-info-banner ${infoDept.visibility?.toLowerCase() === 'public' ? 'public' : 'private'}`} style={{ marginTop: '1rem', marginBottom: 0 }}>
+                  {infoDept.visibility?.toLowerCase() === 'public' ? (
+                    <>
+                      <Globe size={18} style={{ flexShrink: 0 }} />
+                      <div>
+                        <strong>Public Visibility Active:</strong> This department and its research focus areas are discoverable by all researchers, supervisors, and students across ResCollab.
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <Lock size={18} style={{ flexShrink: 0 }} />
+                      <div>
+                        <strong>Private / Internal Visibility Active:</strong> This department is restricted to authorized faculty and students affiliated with this university institution.
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              {/* Department Metadata Grid */}
+              <div className="dept-detail-meta-grid">
+                <div className="dept-detail-meta-item">
+                  <div className="dept-detail-meta-label">Head of Department / Dean</div>
+                  <div className="dept-detail-meta-val">
+                    <Users size={16} color="#009acc" />
+                    <span>{infoDept.headOfDepartment || 'Not specified'}</span>
+                  </div>
+                </div>
+
+                <div className="dept-detail-meta-item">
+                  <div className="dept-detail-meta-label">Visibility Status</div>
+                  <div className="dept-detail-meta-val">
+                    {infoDept.visibility?.toLowerCase() === 'public' ? (
+                      <span style={{ color: '#059669', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Globe size={16} /> Public (Platform-wide)
+                      </span>
+                    ) : (
+                      <span style={{ color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                        <Lock size={16} /> Private (Internal only)
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="dept-detail-meta-item">
+                  <div className="dept-detail-meta-label">Official Department Portal</div>
+                  <div className="dept-detail-meta-val">
+                    {infoDept.website ? (
+                      <a
+                        href={infoDept.website.startsWith('http') ? infoDept.website : `https://${infoDept.website}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{ color: 'var(--brand-cyan, #009acc)', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', textDecoration: 'none' }}
+                      >
+                        <ExternalLink size={15} /> Visit Portal
+                      </a>
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>None provided</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Research Scope & Description */}
+              <div style={{ marginTop: '1.25rem' }}>
+                <h4 style={{ fontSize: '1rem', color: 'var(--brand-navy, #0e3065)', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <BookOpen size={16} />
+                  Research Scope & Focus Areas
+                </h4>
+                <div style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '12px', border: '1px solid #e2e8f0', lineHeight: 1.6, color: '#334155' }}>
+                  {infoDept.description || 'No detailed research scope has been documented for this department yet.'}
+                </div>
+              </div>
+            </div>
+
+            <div className="uni-modal-footer">
+              <button
+                id="btn-edit-from-info-modal"
+                className="uni-action-btn-secondary"
+                onClick={() => {
+                  setInfoDept(null);
+                  openEditDept(infoDept);
+                }}
+              >
+                <Edit3 size={15} /> Edit Department
+              </button>
+              <button
+                id="btn-close-dept-info"
+                className="uni-action-btn-primary"
+                onClick={() => setInfoDept(null)}
+              >
+                Close View
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ─── MODAL 3: EDIT UNIVERSITY ─── */}
       {isEditModalOpen && selectedUniversity && (
         <div className="uni-modal-overlay" onClick={() => setIsEditModalOpen(false)}>
           <div className="uni-modal-content small" onClick={e => e.stopPropagation()}>
@@ -1275,8 +1882,8 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL 3: ADD DEPARTMENT ─── */}
-      {isAddDeptModalOpen && selectedUniversity && (
+      {/* ─── MODAL 4: ADD DEPARTMENT [T-016.4 With Visibility Selector] ─── */}
+      {isAddDeptModalOpen && (
         <div className="uni-modal-overlay" onClick={() => setIsAddDeptModalOpen(false)}>
           <div className="uni-modal-content small" onClick={e => e.stopPropagation()}>
             <div className="uni-modal-header">
@@ -1290,6 +1897,20 @@ export const UniversityManagement: React.FC = () => {
 
             <form onSubmit={handleAddDepartment}>
               <div className="uni-modal-body">
+                {/* University Selection if multiple exist */}
+                <div className="form-field">
+                  <label htmlFor="select-add-dept-uni">University Institution *</label>
+                  <select
+                    id="select-add-dept-uni"
+                    value={targetUniIdForNewDept || ''}
+                    onChange={e => setTargetUniIdForNewDept(parseInt(e.target.value))}
+                  >
+                    {universities.map(u => (
+                      <option key={u.id} value={u.id}>{u.name}</option>
+                    ))}
+                  </select>
+                </div>
+
                 <div className="form-field">
                   <label htmlFor="input-dept-name">Department / Faculty Name *</label>
                   <input
@@ -1313,29 +1934,47 @@ export const UniversityManagement: React.FC = () => {
                   />
                 </div>
 
-                <div className="form-grid-2">
-                  <div className="form-field">
-                    <label htmlFor="input-dept-visibility">Visibility</label>
-                    <select
-                      id="input-dept-visibility"
-                      value={deptForm.visibility}
-                      onChange={e => setDeptForm({ ...deptForm, visibility: e.target.value })}
+                {/* Visual Visibility Selector [T-016.4] */}
+                <div className="form-field">
+                  <label>Department Visibility Mode *</label>
+                  <div className="visibility-options-grid">
+                    <div
+                      id="opt-dept-vis-public"
+                      className={`visibility-option-card ${deptForm.visibility === 'Public' ? 'selected public' : ''}`}
+                      onClick={() => setDeptForm({ ...deptForm, visibility: 'Public' })}
                     >
-                      <option value="Public">Public (Visible to All)</option>
-                      <option value="Private">Private</option>
-                    </select>
-                  </div>
+                      <div className="vis-option-title">
+                        <Globe size={16} color="#059669" /> Public Visibility
+                      </div>
+                      <div className="vis-option-desc">
+                        Visible and discoverable by all platform researchers across universities.
+                      </div>
+                    </div>
 
-                  <div className="form-field">
-                    <label htmlFor="input-dept-website">Department Website</label>
-                    <input
-                      id="input-dept-website"
-                      type="text"
-                      placeholder="e.g. cs.university.edu"
-                      value={deptForm.website}
-                      onChange={e => setDeptForm({ ...deptForm, website: e.target.value })}
-                    />
+                    <div
+                      id="opt-dept-vis-private"
+                      className={`visibility-option-card ${deptForm.visibility === 'Private' ? 'selected private' : ''}`}
+                      onClick={() => setDeptForm({ ...deptForm, visibility: 'Private' })}
+                    >
+                      <div className="vis-option-title">
+                        <Lock size={16} color="#d97706" /> Private Visibility
+                      </div>
+                      <div className="vis-option-desc">
+                        Restricted internal visibility for members of this institution only.
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="input-dept-website">Department Website / Portal</label>
+                  <input
+                    id="input-dept-website"
+                    type="text"
+                    placeholder="e.g. cs.university.edu"
+                    value={deptForm.website}
+                    onChange={e => setDeptForm({ ...deptForm, website: e.target.value })}
+                  />
                 </div>
 
                 <div className="form-field">
@@ -1372,13 +2011,13 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL 4: EDIT DEPARTMENT ─── */}
-      {isEditDeptModalOpen && selectedDept && selectedUniversity && (
+      {/* ─── MODAL 5: EDIT DEPARTMENT [T-016.4 With Visibility Selector] ─── */}
+      {isEditDeptModalOpen && selectedDept && (
         <div className="uni-modal-overlay" onClick={() => setIsEditDeptModalOpen(false)}>
           <div className="uni-modal-content small" onClick={e => e.stopPropagation()}>
             <div className="uni-modal-header">
               <h2>
-                <Edit3 size={18} /> Edit Department
+                <Edit3 size={18} /> Edit Department Information & Visibility
               </h2>
               <button className="uni-modal-close" onClick={() => setIsEditDeptModalOpen(false)}>
                 <X size={20} />
@@ -1408,28 +2047,46 @@ export const UniversityManagement: React.FC = () => {
                   />
                 </div>
 
-                <div className="form-grid-2">
-                  <div className="form-field">
-                    <label htmlFor="input-edit-dept-visibility">Visibility</label>
-                    <select
-                      id="input-edit-dept-visibility"
-                      value={deptForm.visibility}
-                      onChange={e => setDeptForm({ ...deptForm, visibility: e.target.value })}
+                {/* Visual Visibility Selector in Edit Modal [T-016.4] */}
+                <div className="form-field">
+                  <label>Department Visibility Mode *</label>
+                  <div className="visibility-options-grid">
+                    <div
+                      id="opt-edit-dept-vis-public"
+                      className={`visibility-option-card ${deptForm.visibility === 'Public' ? 'selected public' : ''}`}
+                      onClick={() => setDeptForm({ ...deptForm, visibility: 'Public' })}
                     >
-                      <option value="Public">Public (Visible to All)</option>
-                      <option value="Private">Private</option>
-                    </select>
-                  </div>
+                      <div className="vis-option-title">
+                        <Globe size={16} color="#059669" /> Public Visibility
+                      </div>
+                      <div className="vis-option-desc">
+                        Visible and discoverable by all platform researchers across universities.
+                      </div>
+                    </div>
 
-                  <div className="form-field">
-                    <label htmlFor="input-edit-dept-website">Department Website</label>
-                    <input
-                      id="input-edit-dept-website"
-                      type="text"
-                      value={deptForm.website}
-                      onChange={e => setDeptForm({ ...deptForm, website: e.target.value })}
-                    />
+                    <div
+                      id="opt-edit-dept-vis-private"
+                      className={`visibility-option-card ${deptForm.visibility === 'Private' ? 'selected private' : ''}`}
+                      onClick={() => setDeptForm({ ...deptForm, visibility: 'Private' })}
+                    >
+                      <div className="vis-option-title">
+                        <Lock size={16} color="#d97706" /> Private Visibility
+                      </div>
+                      <div className="vis-option-desc">
+                        Restricted internal visibility for members of this institution only.
+                      </div>
+                    </div>
                   </div>
+                </div>
+
+                <div className="form-field">
+                  <label htmlFor="input-edit-dept-website">Department Website</label>
+                  <input
+                    id="input-edit-dept-website"
+                    type="text"
+                    value={deptForm.website}
+                    onChange={e => setDeptForm({ ...deptForm, website: e.target.value })}
+                  />
                 </div>
 
                 <div className="form-field">
@@ -1465,7 +2122,7 @@ export const UniversityManagement: React.FC = () => {
         </div>
       )}
 
-      {/* ─── MODAL 5: DELETE CONFIRMATION ─── */}
+      {/* ─── MODAL 6: DELETE CONFIRMATION ─── */}
       {deleteTarget && (
         <div className="uni-modal-overlay" onClick={() => setDeleteTarget(null)}>
           <div className="uni-modal-content small" onClick={e => e.stopPropagation()}>
