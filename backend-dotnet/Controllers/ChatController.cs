@@ -46,28 +46,135 @@ namespace ResCollab.Api.Controllers
         {
             var userId = GetUserId();
 
-            var conversations = await _context.ConversationParticipants
+            var participantRows = await _context.ConversationParticipants
                 .Where(cp => cp.UserId == userId)
                 .Include(cp => cp.Conversation)
-                    .ThenInclude(c => c.Participants)
+                    .ThenInclude(c => c!.Participants)
                         .ThenInclude(p => p.User)
-                .OrderByDescending(cp => cp.Conversation.UpdatedAt)
-                .Select(cp => new {
-                    cp.Conversation!.Id,
-                    cp.Conversation!.Type,
-                    cp.Conversation!.Name,
-                    cp.Conversation!.WorkspaceId,
-                    cp.Conversation!.Status,
-                    cp.Conversation!.UpdatedAt,
+                .OrderByDescending(cp => cp.Conversation!.UpdatedAt)
+                .ToListAsync();
+
+            var convIds = participantRows.Select(cp => cp.ConversationId).ToList();
+
+            var lastMessages = await _context.ChatMessages
+                .Include(m => m.Sender)
+                .Where(m => convIds.Contains(m.ConversationId) && !m.IsDeleted)
+                .OrderByDescending(m => m.CreatedAt)
+                .ToListAsync();
+
+            var lastMessageMap = lastMessages
+                .GroupBy(m => m.ConversationId)
+                .ToDictionary(g => g.Key, g => g.First());
+
+            var conversations = participantRows.Select(cp => {
+                var c = cp.Conversation!;
+                lastMessageMap.TryGetValue(c.Id, out var lastMsg);
+
+                var unreadCount = _context.ChatMessages
+                    .Count(m => m.ConversationId == c.Id && !m.IsDeleted && m.SenderId != userId && (cp.LastReadAt == null || m.CreatedAt > cp.LastReadAt));
+
+                return new {
+                    c.Id,
+                    c.Type,
+                    c.Name,
+                    c.WorkspaceId,
+                    c.Status,
+                    c.UpdatedAt,
                     cp.LastReadAt,
-                    Participants = cp.Conversation!.Participants.Select(p => new {
+                    UnreadCount = unreadCount,
+                    LastMessage = lastMsg != null ? new {
+                        lastMsg.Id,
+                        lastMsg.Content,
+                        lastMsg.MessageType,
+                        lastMsg.CreatedAt,
+                        lastMsg.SenderId,
+                        SenderName = lastMsg.Sender?.FullName
+                    } : null,
+                    Participants = c.Participants.Select(p => new {
                         p.UserId,
-                        UserName = p.User != null ? p.User.FullName : null
+                        UserName = p.User != null ? p.User.FullName : null,
+                        p.LastReadAt,
+                        p.JoinedAt
                     })
+                };
+            }).ToList();
+
+            return Ok(conversations);
+        }
+
+        // GET /api/chat/contacts - Return researchers & colleagues for starting new chats
+        [HttpGet("contacts")]
+        public async Task<IActionResult> GetContacts([FromQuery] string? search)
+        {
+            var userId = GetUserId();
+            var query = _context.Users
+                .Include(u => u.Profile)
+                .Where(u => u.Id != userId)
+                .AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(search))
+            {
+                var lower = search.ToLower();
+                query = query.Where(u => u.FullName.ToLower().Contains(lower) || 
+                                         u.Email.ToLower().Contains(lower) ||
+                                         (u.Profile != null && u.Profile.Department != null && u.Profile.Department.ToLower().Contains(lower)) ||
+                                         (u.Profile != null && u.Profile.University != null && u.Profile.University.ToLower().Contains(lower)));
+            }
+
+            var users = await query
+                .OrderBy(u => u.FullName)
+                .Take(50)
+                .Select(u => new {
+                    u.Id,
+                    u.FullName,
+                    u.Email,
+                    u.Role,
+                    Department = u.Profile != null ? u.Profile.Department : null,
+                    University = u.Profile != null ? u.Profile.University : null
                 })
                 .ToListAsync();
 
-            return Ok(conversations);
+            var directConvIds = await _context.ConversationParticipants
+                .Where(cp => cp.UserId == userId && cp.Conversation!.Type == "Direct")
+                .Select(cp => cp.ConversationId)
+                .ToListAsync();
+
+            var otherParticipants = await _context.ConversationParticipants
+                .Where(cp => directConvIds.Contains(cp.ConversationId) && cp.UserId != userId)
+                .Select(cp => new { cp.ConversationId, cp.UserId })
+                .ToListAsync();
+
+            var directMap = otherParticipants.ToDictionary(p => p.UserId, p => p.ConversationId);
+
+            var result = users.Select(u => new {
+                u.Id,
+                u.FullName,
+                u.Email,
+                u.Role,
+                u.Department,
+                u.University,
+                DirectConversationId = directMap.TryGetValue(u.Id, out int convId) ? (int?)convId : null
+            });
+
+            return Ok(result);
+        }
+
+        // GET /api/chat/workspaces - Return workspaces the current user belongs to
+        [HttpGet("workspaces")]
+        public async Task<IActionResult> GetUserWorkspaces()
+        {
+            var userId = GetUserId();
+            var workspaces = await _context.WorkspaceMembers
+                .Where(wm => wm.UserId == userId)
+                .Include(wm => wm.Workspace)
+                .Select(wm => new {
+                    wm.Workspace!.Id,
+                    wm.Workspace!.Name,
+                    wm.Workspace!.Description
+                })
+                .ToListAsync();
+
+            return Ok(workspaces);
         }
 
         // GET /api/chat/conversations/{id}
@@ -101,9 +208,23 @@ namespace ResCollab.Api.Controllers
 
         // POST /api/chat/conversations/direct  - Start or retrieve a 1-to-1 conversation
         [HttpPost("conversations/direct")]
-        public async Task<IActionResult> StartDirectConversation([FromBody] int targetUserId)
+        public async Task<IActionResult> StartDirectConversation([FromBody] System.Text.Json.JsonElement body)
         {
             var userId = GetUserId();
+            int targetUserId = 0;
+            if (body.ValueKind == System.Text.Json.JsonValueKind.Number)
+            {
+                targetUserId = body.GetInt32();
+            }
+            else if (body.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (body.TryGetProperty("targetUserId", out var prop) || body.TryGetProperty("TargetUserId", out prop) || body.TryGetProperty("userId", out prop))
+                {
+                    targetUserId = prop.GetInt32();
+                }
+            }
+
+            if (targetUserId <= 0) return BadRequest("Valid targetUserId is required.");
             if (userId == targetUserId) return BadRequest("Cannot start a conversation with yourself.");
 
             var targetExists = await _context.Users.AnyAsync(u => u.Id == targetUserId);
@@ -184,6 +305,22 @@ namespace ResCollab.Api.Controllers
             conv.UpdatedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
             return Ok(new { message = "Conversation archived." });
+        }
+
+        // PATCH /api/chat/conversations/{id}/unarchive
+        [HttpPatch("conversations/{id}/unarchive")]
+        public async Task<IActionResult> UnarchiveConversation(int id)
+        {
+            var userId = GetUserId();
+            if (!await IsParticipant(id, userId)) return Forbid();
+
+            var conv = await _context.Conversations.FindAsync(id);
+            if (conv == null) return NotFound("Conversation not found.");
+
+            conv.Status = "Active";
+            conv.UpdatedAt = DateTime.UtcNow;
+            await _context.SaveChangesAsync();
+            return Ok(new { message = "Conversation unarchived." });
         }
 
         // POST /api/chat/conversations/{id}/read  - Mark conversation as read
@@ -323,7 +460,7 @@ namespace ResCollab.Api.Controllers
 
         // PUT /api/chat/conversations/{conversationId}/messages/{messageId}
         [HttpPut("conversations/{conversationId}/messages/{messageId}")]
-        public async Task<IActionResult> EditMessage(int conversationId, int messageId, [FromBody] string newContent)
+        public async Task<IActionResult> EditMessage(int conversationId, int messageId, [FromBody] System.Text.Json.JsonElement body)
         {
             var userId = GetUserId();
             var message = await _context.ChatMessages
@@ -332,6 +469,19 @@ namespace ResCollab.Api.Controllers
             if (message == null) return NotFound("Message not found.");
             if (message.SenderId != userId) return Forbid();
             if (message.IsDeleted) return BadRequest("Cannot edit a deleted message.");
+
+            string newContent = "";
+            if (body.ValueKind == System.Text.Json.JsonValueKind.String)
+            {
+                newContent = body.GetString() ?? "";
+            }
+            else if (body.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (body.TryGetProperty("newContent", out var nc)) newContent = nc.GetString() ?? "";
+                else if (body.TryGetProperty("content", out var c)) newContent = c.GetString() ?? "";
+                else if (body.TryGetProperty("Content", out var C)) newContent = C.GetString() ?? "";
+            }
+
             if (string.IsNullOrWhiteSpace(newContent)) return BadRequest("Content cannot be empty.");
 
             message.Content = newContent;
@@ -365,13 +515,28 @@ namespace ResCollab.Api.Controllers
 
         // POST /api/chat/conversations/{id}/participants
         [HttpPost("conversations/{id}/participants")]
-        public async Task<IActionResult> AddParticipant(int id, [FromBody] int newUserId)
+        public async Task<IActionResult> AddParticipant(int id, [FromBody] System.Text.Json.JsonElement body)
         {
             var userId = GetUserId();
             var conv = await _context.Conversations.FindAsync(id);
             if (conv == null) return NotFound("Conversation not found.");
             if (conv.Type != "Team") return BadRequest("Can only add participants to Team conversations.");
             if (!await IsParticipant(id, userId)) return Forbid();
+
+            int newUserId = 0;
+            if (body.ValueKind == System.Text.Json.JsonValueKind.Number)
+            {
+                newUserId = body.GetInt32();
+            }
+            else if (body.ValueKind == System.Text.Json.JsonValueKind.Object)
+            {
+                if (body.TryGetProperty("newUserId", out var prop) || body.TryGetProperty("userId", out prop) || body.TryGetProperty("UserId", out prop))
+                {
+                    newUserId = prop.GetInt32();
+                }
+            }
+
+            if (newUserId <= 0) return BadRequest("Valid user id is required.");
 
             var userExists = await _context.Users.AnyAsync(u => u.Id == newUserId);
             if (!userExists) return NotFound("User not found.");

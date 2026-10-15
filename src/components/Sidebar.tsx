@@ -7,6 +7,7 @@ import './DashboardLayout.css';
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
+  const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 
   useEffect(() => {
     const fetchUnread = async () => {
@@ -19,6 +20,14 @@ const Sidebar: React.FC = () => {
         if (res.ok) {
           const data = await res.json();
           setUnreadCount(data.count);
+        }
+
+        const chatRes = await fetch('http://localhost:5000/api/chat/unread-count', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (chatRes.ok) {
+          const chatData = await chatRes.json();
+          setUnreadMessagesCount(chatData.unreadCount || 0);
         }
       } catch (err) {
         console.error(err);
@@ -100,7 +109,16 @@ const Sidebar: React.FC = () => {
           </div>
         </NavLink>
         <NavLink to="/messages" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
-          <MessageSquare size={20} /> Messages
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+              <MessageSquare size={20} /> Messages
+            </span>
+            {unreadMessagesCount > 0 && (
+              <span className="unread-badge" style={{ background: '#0284c7', color: '#fff', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>
+                {unreadMessagesCount}
+              </span>
+            )}
+          </div>
         </NavLink>
         <NavLink to="/settings" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <Settings size={20} /> Settings
