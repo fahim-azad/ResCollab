@@ -1,12 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
-  Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, 
+  Search, Folder, User,
   Bell, Edit2, User as UserIcon, BookOpen, Settings as SettingsIcon,
   MapPin, Mail, Building, GraduationCap, Globe, Link as LinkIcon,
   Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield
 } from 'lucide-react';
-import logo from '../assets/ResCollab-logo.png';
 import './ProfilePage.css';
 
 interface ProfileData {
@@ -175,11 +174,6 @@ const ProfilePage: React.FC = () => {
     } finally {
       setSaving(false);
     }
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    navigate('/login');
   };
 
   if (loading) {

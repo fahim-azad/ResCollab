@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, MapPin, Building, GraduationCap, AlertCircle } from 'lucide-react';
+import { User, Building, GraduationCap, AlertCircle } from 'lucide-react';
 import './SupervisorRecommendations.css';
 
 interface SupervisorDto {

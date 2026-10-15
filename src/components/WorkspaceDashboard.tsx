@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Users, Shield, User, Clock, Briefcase } from 'lucide-react';
+import { Plus, Shield, User, Clock, Briefcase } from 'lucide-react';
 import WorkspaceTasks from './WorkspaceTasks';
 import WorkspaceFilesAndNotes from './WorkspaceFilesAndNotes';
 import './WorkspaceDashboard.css';

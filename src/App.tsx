@@ -15,6 +15,7 @@ import NetworkPage from './components/NetworkPage';
 import NotificationsPage from './components/NotificationsPage';
 import SavedPage from './components/SavedPage';
 import CollaboratorDiscovery from './components/CollaboratorDiscovery';
+import UniversityManagement from './components/UniversityManagement';
 import './index.css';
 
 const App: React.FC = () => {
@@ -38,6 +39,7 @@ const App: React.FC = () => {
             <Route path="/projects" element={<ProjectMarketplace />} />
             <Route path="/workspaces" element={<WorkspaceDashboard />} />
             <Route path="/collaborators" element={<CollaboratorDiscovery />} />
+            <Route path="/universities" element={<UniversityManagement />} />
           </Route>
         </Route>
       </Routes>
