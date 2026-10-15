@@ -145,6 +145,98 @@ namespace ResCollab.Api.Controllers
             return Ok(listing);
         }
 
+        // GET /api/projectdiscovery/my-listings
+        [HttpGet("my-listings")]
+        public async Task<IActionResult> GetMyListings()
+        {
+            var userId = GetUserId();
+            var allListings = await _context.ProjectDirectoryListings
+                .Include(pdl => pdl.Laboratory)
+                .ToListAsync();
+
+            var results = new System.Collections.Generic.List<object>();
+            foreach (var listing in allListings)
+            {
+                if (listing.ItemType == "OpenProject")
+                {
+                    var project = await _context.OpenProjects.FirstOrDefaultAsync(p => p.Id == listing.ItemId && p.SupervisorId == userId);
+                    if (project != null)
+                    {
+                        results.Add(new {
+                            listing.Id,
+                            listing.ItemType,
+                            listing.ItemId,
+                            listing.Visibility,
+                            listing.LaboratoryId,
+                            LaboratoryName = listing.Laboratory?.Name,
+                            Title = project.Title,
+                            Description = project.Description,
+                            Department = project.Department,
+                            Status = project.Status,
+                            CreatedAt = listing.CreatedAt
+                        });
+                    }
+                }
+                else if (listing.ItemType == "ResearchIdea")
+                {
+                    var idea = await _context.ResearchIdeas.FirstOrDefaultAsync(i => i.Id == listing.ItemId && i.CreatorId == userId);
+                    if (idea != null)
+                    {
+                        results.Add(new {
+                            listing.Id,
+                            listing.ItemType,
+                            listing.ItemId,
+                            listing.Visibility,
+                            listing.LaboratoryId,
+                            LaboratoryName = listing.Laboratory?.Name,
+                            Title = idea.Title,
+                            Description = idea.Description,
+                            ResearchArea = idea.ResearchArea,
+                            Status = idea.Status,
+                            CreatedAt = listing.CreatedAt
+                        });
+                    }
+                }
+            }
+            return Ok(results);
+        }
+
+        // GET /api/projectdiscovery/unlisted-items
+        [HttpGet("unlisted-items")]
+        public async Task<IActionResult> GetUnlistedItems()
+        {
+            var userId = GetUserId();
+            var existingListings = await _context.ProjectDirectoryListings.ToListAsync();
+
+            var listedProjectIds = existingListings.Where(l => l.ItemType == "OpenProject").Select(l => l.ItemId).ToHashSet();
+            var listedIdeaIds = existingListings.Where(l => l.ItemType == "ResearchIdea").Select(l => l.ItemId).ToHashSet();
+
+            var unlistedProjects = await _context.OpenProjects
+                .Where(p => p.SupervisorId == userId && !listedProjectIds.Contains(p.Id))
+                .Select(p => new {
+                    ItemType = "OpenProject",
+                    ItemId = p.Id,
+                    Title = p.Title,
+                    Department = p.Department
+                })
+                .ToListAsync();
+
+            var unlistedIdeas = await _context.ResearchIdeas
+                .Where(i => i.CreatorId == userId && !listedIdeaIds.Contains(i.Id))
+                .Select(i => new {
+                    ItemType = "ResearchIdea",
+                    ItemId = i.Id,
+                    Title = i.Title,
+                    ResearchArea = i.ResearchArea
+                })
+                .ToListAsync();
+
+            return Ok(new {
+                Projects = unlistedProjects,
+                Ideas = unlistedIdeas
+            });
+        }
+
         // =============================================
         // MANAGE VISIBILITY LISTINGS
         // =============================================
