@@ -201,6 +201,51 @@ namespace ResCollab.Api.Controllers
             return Ok(new { message = "Conversation marked as read." });
         }
 
+        // GET /api/chat/unread-count  - Total unread messages across all conversations
+        [HttpGet("unread-count")]
+        public async Task<IActionResult> GetTotalUnreadCount()
+        {
+            var userId = GetUserId();
+
+            var participants = await _context.ConversationParticipants
+                .Where(cp => cp.UserId == userId)
+                .ToListAsync();
+
+            int total = 0;
+            foreach (var p in participants)
+            {
+                var count = await _context.ChatMessages
+                    .CountAsync(m =>
+                        m.ConversationId == p.ConversationId &&
+                        !m.IsDeleted &&
+                        m.SenderId != userId &&
+                        (p.LastReadAt == null || m.CreatedAt > p.LastReadAt));
+                total += count;
+            }
+
+            return Ok(new { unreadCount = total });
+        }
+
+        // GET /api/chat/conversations/{id}/unread-count  - Unread count for one conversation
+        [HttpGet("conversations/{id}/unread-count")]
+        public async Task<IActionResult> GetConversationUnreadCount(int id)
+        {
+            var userId = GetUserId();
+            var participant = await _context.ConversationParticipants
+                .FirstOrDefaultAsync(cp => cp.ConversationId == id && cp.UserId == userId);
+
+            if (participant == null) return Forbid();
+
+            var count = await _context.ChatMessages
+                .CountAsync(m =>
+                    m.ConversationId == id &&
+                    !m.IsDeleted &&
+                    m.SenderId != userId &&
+                    (participant.LastReadAt == null || m.CreatedAt > participant.LastReadAt));
+
+            return Ok(new { conversationId = id, unreadCount = count });
+        }
+
         // =============================================
         // MESSAGE ENDPOINTS
         // =============================================
@@ -355,6 +400,47 @@ namespace ResCollab.Api.Controllers
             _context.ConversationParticipants.Remove(participant);
             await _context.SaveChangesAsync();
             return Ok(new { message = "Participant removed." });
+        }
+
+        // =============================================
+        // SEARCH
+        // =============================================
+
+        // GET /api/chat/search?q=hello  - Search messages across all user's conversations
+        [HttpGet("search")]
+        public async Task<IActionResult> SearchMessages([FromQuery] string q)
+        {
+            if (string.IsNullOrWhiteSpace(q) || q.Length < 2)
+                return BadRequest("Search query must be at least 2 characters.");
+
+            var userId = GetUserId();
+
+            // Get conversation IDs the user belongs to
+            var conversationIds = await _context.ConversationParticipants
+                .Where(cp => cp.UserId == userId)
+                .Select(cp => cp.ConversationId)
+                .ToListAsync();
+
+            var results = await _context.ChatMessages
+                .Include(m => m.Sender)
+                .Where(m =>
+                    conversationIds.Contains(m.ConversationId) &&
+                    !m.IsDeleted &&
+                    m.Content.Contains(q))
+                .OrderByDescending(m => m.CreatedAt)
+                .Take(50)
+                .Select(m => new {
+                    m.Id,
+                    m.ConversationId,
+                    m.SenderId,
+                    SenderName = m.Sender != null ? m.Sender.FullName : null,
+                    m.Content,
+                    m.MessageType,
+                    m.CreatedAt
+                })
+                .ToListAsync();
+
+            return Ok(results);
         }
     }
 }
