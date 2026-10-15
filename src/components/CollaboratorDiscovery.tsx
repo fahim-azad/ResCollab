@@ -1,19 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Handshake, PlusCircle, MapPin, BookOpen, Search } from 'lucide-react';
+import { 
+  Users, Handshake, PlusCircle, Search, 
+  UserCheck, Shield, Sparkles, BookOpen, Building, Globe, Check 
+} from 'lucide-react';
+import ResearcherCollabCard, { type ResearcherProfileData } from './ResearcherCollabCard';
+import ResearcherCollabModal from './ResearcherCollabModal';
 import './CollaboratorDiscovery.css';
 
 const API = 'http://localhost:5000/api';
-
-interface ResearcherProfile {
-  userId: number;
-  userName: string;
-  institution: string | null;
-  department: string | null;
-  country: string | null;
-  researchInterests: string | null;
-  expertiseAreas: string | null;
-  isOpenToCollaboration: boolean;
-}
 
 interface CollabOpportunity {
   id: number;
@@ -29,21 +23,36 @@ interface CollabOpportunity {
   postedByName: string | null;
 }
 
-type Tab = 'discover' | 'opportunities' | 'post';
+type Tab = 'discover' | 'opportunities' | 'post' | 'profile';
 
 const CollaboratorDiscovery: React.FC = () => {
   const token = localStorage.getItem('token') ?? '';
   const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 
-  const [activeTab, setActiveTab] = useState<Tab>('discover');
+  // Detect query param ?tab=profile or ?tab=my-profile
+  const initialTab = (): Tab => {
+    const params = new URLSearchParams(window.location.search);
+    const tabParam = params.get('tab');
+    if (tabParam === 'profile' || tabParam === 'my-profile') return 'profile';
+    if (tabParam === 'opportunities') return 'opportunities';
+    if (tabParam === 'post') return 'post';
+    return 'discover';
+  };
+
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
 
   // --- Researcher discovery state ---
-  const [researchers, setResearchers] = useState<ResearcherProfile[]>([]);
+  const [researchers, setResearchers] = useState<ResearcherProfileData[]>([]);
   const [search, setSearch] = useState('');
   const [institution, setInstitution] = useState('');
   const [country, setCountry] = useState('');
   const [openOnly, setOpenOnly] = useState(false);
   const [loadingResearchers, setLoadingResearchers] = useState(false);
+
+  // Modal & Connections state
+  const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
+  const [connectionMap, setConnectionMap] = useState<{ [userId: number]: string }>({});
+  const [connectingUserId, setConnectingUserId] = useState<number | null>(null);
 
   // --- Opportunities state ---
   const [opportunities, setOpportunities] = useState<CollabOpportunity[]>([]);
@@ -59,19 +68,37 @@ const CollaboratorDiscovery: React.FC = () => {
   const [posting, setPosting] = useState(false);
   const [formMsg, setFormMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // --- My Collaboration Profile state ---
+  const [myProfile, setMyProfile] = useState({
+    userName: 'My Profile',
+    institution: '',
+    department: '',
+    country: '',
+    researchInterests: '',
+    expertiseAreas: '',
+    isOpenToCollaboration: true,
+    visibility: 'Public'
+  });
+  const [loadingMyProfile, setLoadingMyProfile] = useState(false);
+  const [savingMyProfile, setSavingMyProfile] = useState(false);
+  const [myProfileMsg, setMyProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   // --- Fetch researchers ---
   const fetchResearchers = async () => {
     setLoadingResearchers(true);
     try {
       const params = new URLSearchParams();
-      if (search) params.set('search', search);
+      if (search) params.set('expertise', search);
       if (institution) params.set('institution', institution);
       if (country) params.set('country', country);
       if (openOnly) params.set('openOnly', 'true');
       const res = await fetch(`${API}/collaborator/discover?${params}`, { headers });
       if (res.ok) setResearchers(await res.json());
-    } catch (e) { console.error(e); }
-    finally { setLoadingResearchers(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingResearchers(false);
+    }
   };
 
   // --- Fetch opportunities ---
@@ -83,24 +110,159 @@ const CollaboratorDiscovery: React.FC = () => {
       if (crossOnly) params.set('crossInstitution', 'true');
       const res = await fetch(`${API}/collaborator/opportunities?${params}`, { headers });
       if (res.ok) setOpportunities(await res.json());
-    } catch (e) { console.error(e); }
-    finally { setLoadingOpps(false); }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingOpps(false);
+    }
   };
 
-  useEffect(() => { if (activeTab === 'discover') fetchResearchers(); }, [activeTab]);
-  useEffect(() => { if (activeTab === 'opportunities') fetchOpportunities(); }, [activeTab]);
+  // --- Fetch My Collaboration Profile ---
+  const fetchMyProfile = async () => {
+    setLoadingMyProfile(true);
+    setMyProfileMsg(null);
+    try {
+      // First fetch general profile to get user's display name
+      let displayName = 'My Profile';
+      try {
+        const uRes = await fetch(`${API}/profile`, { headers });
+        if (uRes.ok) {
+          const uData = await uRes.json();
+          displayName = uData.name || 'My Profile';
+        }
+      } catch (err) {
+        console.warn('Could not fetch user name', err);
+      }
 
-  const handleResearcherSearch = (e: React.FormEvent) => { e.preventDefault(); fetchResearchers(); };
-  const handleOppSearch = (e: React.FormEvent) => { e.preventDefault(); fetchOpportunities(); };
+      // Next fetch collaborator profile
+      const res = await fetch(`${API}/collaborator/profile/me`, { headers });
+      if (res.ok) {
+        const data = await res.json();
+        setMyProfile({
+          userName: displayName,
+          institution: data.institution || '',
+          department: data.department || '',
+          country: data.country || '',
+          researchInterests: data.researchInterests || '',
+          expertiseAreas: data.expertiseAreas || '',
+          isOpenToCollaboration: data.isOpenToCollaboration ?? true,
+          visibility: data.visibility || 'Public'
+        });
+      } else if (res.status === 404) {
+        // Fallback: populate from general profile if collaborator profile not yet created
+        try {
+          const uRes = await fetch(`${API}/profile`, { headers });
+          if (uRes.ok) {
+            const uData = await uRes.json();
+            setMyProfile(prev => ({
+              ...prev,
+              userName: uData.name || 'My Profile',
+              institution: uData.university || '',
+              department: uData.department || '',
+              country: uData.country || '',
+              researchInterests: (uData.interests || []).join(', '),
+              expertiseAreas: (uData.skills || []).join(', ')
+            }));
+          }
+        } catch {
+          // ignore
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      setMyProfileMsg({ type: 'error', text: 'Failed to load your collaboration profile.' });
+    } finally {
+      setLoadingMyProfile(false);
+    }
+  };
+
+  // --- Save My Collaboration Profile ---
+  const handleSaveMyProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingMyProfile(true);
+    setMyProfileMsg(null);
+    try {
+      const res = await fetch(`${API}/collaborator/profile`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          institution: myProfile.institution || null,
+          department: myProfile.department || null,
+          country: myProfile.country || null,
+          researchInterests: myProfile.researchInterests || null,
+          expertiseAreas: myProfile.expertiseAreas || null,
+          isOpenToCollaboration: myProfile.isOpenToCollaboration,
+          visibility: myProfile.visibility
+        })
+      });
+
+      if (res.ok) {
+        setMyProfileMsg({ type: 'success', text: 'Collaboration profile updated successfully!' });
+      } else {
+        const text = await res.text();
+        setMyProfileMsg({ type: 'error', text: text || 'Failed to update profile.' });
+      }
+    } catch {
+      setMyProfileMsg({ type: 'error', text: 'Network error occurred while saving.' });
+    } finally {
+      setSavingMyProfile(false);
+    }
+  };
+
+  // --- Connect with a researcher ---
+  const handleConnect = async (targetUserId: number) => {
+    setConnectingUserId(targetUserId);
+    try {
+      const res = await fetch(`${API}/network/connect/${targetUserId}`, {
+        method: 'POST',
+        headers
+      });
+      if (res.ok) {
+        setConnectionMap(prev => ({ ...prev, [targetUserId]: 'Pending' }));
+      } else {
+        const text = await res.text();
+        if (text.includes('already exists') || text.includes('Pending')) {
+          setConnectionMap(prev => ({ ...prev, [targetUserId]: 'Pending' }));
+        } else {
+          alert(`Connection notice: ${text || 'Could not send request.'}`);
+        }
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setConnectingUserId(null);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'discover') fetchResearchers();
+    if (activeTab === 'opportunities') fetchOpportunities();
+    if (activeTab === 'profile') fetchMyProfile();
+  }, [activeTab]);
+
+  const handleResearcherSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchResearchers();
+  };
+
+  const handleOppSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    fetchOpportunities();
+  };
 
   // --- Post opportunity ---
   const handlePost = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.title.trim()) { setFormMsg({ type: 'error', text: 'Title is required.' }); return; }
-    setPosting(true); setFormMsg(null);
+    if (!form.title.trim()) {
+      setFormMsg({ type: 'error', text: 'Title is required.' });
+      return;
+    }
+    setPosting(true);
+    setFormMsg(null);
     try {
       const res = await fetch(`${API}/collaborator/opportunities`, {
-        method: 'POST', headers,
+        method: 'POST',
+        headers,
         body: JSON.stringify({
           title: form.title,
           description: form.description || null,
@@ -112,17 +274,24 @@ const CollaboratorDiscovery: React.FC = () => {
       });
       if (res.ok) {
         setFormMsg({ type: 'success', text: 'Opportunity posted successfully!' });
-        setForm({ title: '', description: '', requiredExpertise: '', researchArea: '', isCrossInstitution: true, deadline: '' });
+        setForm({
+          title: '',
+          description: '',
+          requiredExpertise: '',
+          researchArea: '',
+          isCrossInstitution: true,
+          deadline: ''
+        });
       } else {
         const text = await res.text();
         setFormMsg({ type: 'error', text: text || 'Failed to post opportunity.' });
       }
-    } catch { setFormMsg({ type: 'error', text: 'Network error.' }); }
-    finally { setPosting(false); }
+    } catch {
+      setFormMsg({ type: 'error', text: 'Network error.' });
+    } finally {
+      setPosting(false);
+    }
   };
-
-  const getInitials = (name: string | null) =>
-    name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
   const formatDeadline = (d: string | null) =>
     d ? new Date(d).toLocaleDateString() : null;
@@ -130,8 +299,8 @@ const CollaboratorDiscovery: React.FC = () => {
   return (
     <div className="collab-container">
       <div className="collab-header">
-        <h1>Collaborator Discovery</h1>
-        <p>Find researchers to work with and explore cross-institutional opportunities.</p>
+        <h1>Collaborator Discovery & Opportunities</h1>
+        <p>Find research partners, manage your cross-institution profile, and explore collaboration calls.</p>
       </div>
 
       {/* Tabs */}
@@ -143,6 +312,14 @@ const CollaboratorDiscovery: React.FC = () => {
         >
           <Users size={16} style={{ marginRight: '0.4rem' }} />
           Discover Researchers
+        </button>
+        <button
+          id="tab-my-profile"
+          className={`tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
+          onClick={() => setActiveTab('profile')}
+        >
+          <UserCheck size={16} style={{ marginRight: '0.4rem' }} />
+          My Collaboration Profile
         </button>
         <button
           id="tab-opportunities"
@@ -169,7 +346,7 @@ const CollaboratorDiscovery: React.FC = () => {
             <input
               id="filter-search"
               className="filter-search"
-              placeholder="Search by name or interest…"
+              placeholder="Search by expertise or interest…"
               value={search}
               onChange={e => setSearch(e.target.value)}
             />
@@ -199,7 +376,7 @@ const CollaboratorDiscovery: React.FC = () => {
           </form>
 
           {loadingResearchers ? (
-            <p style={{ color: '#94a3b8' }}>Loading…</p>
+            <p style={{ color: '#94a3b8' }}>Loading researchers…</p>
           ) : (
             <div className="collab-grid">
               {researchers.length === 0 && (
@@ -209,45 +386,181 @@ const CollaboratorDiscovery: React.FC = () => {
                 </div>
               )}
               {researchers.map(r => (
-                <div key={r.userId} className="researcher-card" id={`researcher-${r.userId}`}>
-                  <div className="researcher-card-header">
-                    <div className="researcher-avatar">{getInitials(r.userName)}</div>
-                    <div>
-                      <h3>{r.userName}</h3>
-                      <div className="sub">
-                        {[r.institution, r.department].filter(Boolean).join(' · ')}
-                      </div>
-                    </div>
-                  </div>
-
-                  {r.country && (
-                    <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <MapPin size={13} /> {r.country}
-                    </div>
-                  )}
-
-                  {r.researchInterests && (
-                    <div className="sub" style={{ display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                      <BookOpen size={13} /> {r.researchInterests}
-                    </div>
-                  )}
-
-                  {r.expertiseAreas && (
-                    <div className="tags">
-                      {r.expertiseAreas.split(',').slice(0, 4).map((tag, i) => (
-                        <span key={i} className="tag">{tag.trim()}</span>
-                      ))}
-                    </div>
-                  )}
-
-                  {r.isOpenToCollaboration && (
-                    <span className="open-badge">✓ Open to collaboration</span>
-                  )}
-                </div>
+                <ResearcherCollabCard
+                  key={r.userId}
+                  researcher={r}
+                  onViewProfile={id => setSelectedUserId(id)}
+                  onConnect={handleConnect}
+                  isConnecting={connectingUserId === r.userId}
+                  connectionStatus={connectionMap[r.userId]}
+                />
               ))}
             </div>
           )}
+
+          {/* Modal when inspecting a researcher's card */}
+          {selectedUserId !== null && (
+            <ResearcherCollabModal
+              userId={selectedUserId}
+              onClose={() => setSelectedUserId(null)}
+              onConnect={handleConnect}
+              isConnecting={connectingUserId === selectedUserId}
+              connectionStatus={connectionMap[selectedUserId]}
+            />
+          )}
         </>
+      )}
+
+      {/* ── MY COLLABORATION PROFILE TAB ── */}
+      {activeTab === 'profile' && (
+        <div className="my-collab-profile-layout">
+          <form 
+            className="my-collab-form" 
+            id="my-collab-profile-form" 
+            onSubmit={handleSaveMyProfile}
+          >
+            <div className="form-header-group">
+              <h2>Researcher Collaboration Profile</h2>
+              <p>Configure how fellow researchers and prospective collaborators discover you across institutions.</p>
+            </div>
+
+            {myProfileMsg && (
+              <div className={myProfileMsg.type === 'success' ? 'success-msg' : 'error-msg'}>
+                {myProfileMsg.text}
+              </div>
+            )}
+
+            {loadingMyProfile ? (
+              <p style={{ color: '#94a3b8' }}>Loading your profile data…</p>
+            ) : (
+              <>
+                <div className="form-field-group">
+                  <label htmlFor="my-collab-institution">
+                    <Building size={15} /> Institution / University
+                  </label>
+                  <input
+                    id="my-collab-institution"
+                    placeholder="e.g. Stanford University"
+                    value={myProfile.institution}
+                    onChange={e => setMyProfile(p => ({ ...p, institution: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-field-group">
+                    <label htmlFor="my-collab-department">Department / Faculty</label>
+                    <input
+                      id="my-collab-department"
+                      placeholder="e.g. Computer Science"
+                      value={myProfile.department}
+                      onChange={e => setMyProfile(p => ({ ...p, department: e.target.value }))}
+                    />
+                  </div>
+                  <div className="form-field-group">
+                    <label htmlFor="my-collab-country">
+                      <Globe size={15} /> Country
+                    </label>
+                    <input
+                      id="my-collab-country"
+                      placeholder="e.g. United States"
+                      value={myProfile.country}
+                      onChange={e => setMyProfile(p => ({ ...p, country: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                <div className="form-field-group">
+                  <label htmlFor="my-collab-interests">
+                    <BookOpen size={15} /> Research Interests
+                  </label>
+                  <textarea
+                    id="my-collab-interests"
+                    rows={2}
+                    placeholder="e.g. Deep Learning, Distributed Systems, Bioinformatics..."
+                    value={myProfile.researchInterests}
+                    onChange={e => setMyProfile(p => ({ ...p, researchInterests: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-field-group">
+                  <label htmlFor="my-collab-expertise">
+                    <Sparkles size={15} /> Expertise Areas (comma-separated tags)
+                  </label>
+                  <input
+                    id="my-collab-expertise"
+                    placeholder="e.g. PyTorch, Kubernetes, Genomics, NLP, React"
+                    value={myProfile.expertiseAreas}
+                    onChange={e => setMyProfile(p => ({ ...p, expertiseAreas: e.target.value }))}
+                  />
+                </div>
+
+                <div className="form-grid-2">
+                  <div className="form-field-group">
+                    <label htmlFor="my-collab-visibility">
+                      <Shield size={15} /> Profile Visibility
+                    </label>
+                    <select
+                      id="my-collab-visibility"
+                      value={myProfile.visibility}
+                      onChange={e => setMyProfile(p => ({ ...p, visibility: e.target.value }))}
+                    >
+                      <option value="Public">Public (All Researchers)</option>
+                      <option value="Connections">Connections Only</option>
+                      <option value="Institution">Same Institution Only</option>
+                      <option value="Private">Private</option>
+                    </select>
+                  </div>
+
+                  <div className="form-field-group checkbox-group">
+                    <label className="toggle-label" htmlFor="my-collab-open-toggle">
+                      <input
+                        id="my-collab-open-toggle"
+                        type="checkbox"
+                        checked={myProfile.isOpenToCollaboration}
+                        onChange={e => setMyProfile(p => ({ ...p, isOpenToCollaboration: e.target.checked }))}
+                      />
+                      <span>Open to Collaboration</span>
+                    </label>
+                    <span className="helper-text">
+                      Allow other researchers to find you in collaboration discovery calls.
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  id="btn-save-collab-profile"
+                  type="submit"
+                  className="form-submit-btn"
+                  disabled={savingMyProfile}
+                  style={{ alignSelf: 'flex-start' }}
+                >
+                  <Check size={16} style={{ marginRight: '0.4rem' }} />
+                  {savingMyProfile ? 'Saving Changes…' : 'Save Collaboration Profile'}
+                </button>
+              </>
+            )}
+          </form>
+
+          {/* Live Collaboration Card Preview */}
+          <div className="card-preview-container">
+            <div className="preview-label">Live Collaboration Card Preview</div>
+            <p className="preview-hint">This is how your collaboration profile appears on researcher discovery cards:</p>
+            <ResearcherCollabCard
+              isPreview={true}
+              researcher={{
+                userId: 0,
+                userName: myProfile.userName || 'Your Name',
+                institution: myProfile.institution || 'Your Institution',
+                department: myProfile.department || 'Department',
+                country: myProfile.country || 'Location',
+                researchInterests: myProfile.researchInterests || 'Add your key research topics and project interests',
+                expertiseAreas: myProfile.expertiseAreas || 'Domain, Methodology, Tools',
+                isOpenToCollaboration: myProfile.isOpenToCollaboration,
+                visibility: myProfile.visibility
+              }}
+            />
+          </div>
+        </div>
       )}
 
       {/* ── OPPORTUNITIES TAB ── */}
@@ -275,7 +588,7 @@ const CollaboratorDiscovery: React.FC = () => {
           </form>
 
           {loadingOpps ? (
-            <p style={{ color: '#94a3b8' }}>Loading…</p>
+            <p style={{ color: '#94a3b8' }}>Loading opportunities…</p>
           ) : (
             <div className="collab-grid">
               {opportunities.length === 0 && (

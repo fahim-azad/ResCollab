@@ -4,7 +4,7 @@ import {
   Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, 
   Bell, Edit2, User as UserIcon, BookOpen, Settings as SettingsIcon,
   MapPin, Mail, Building, GraduationCap, Globe, Link as LinkIcon,
-  Save, X, FileText, Award, UserPlus, UserCheck, Clock
+  Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield
 } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './ProfilePage.css';
@@ -33,6 +33,7 @@ const ProfilePage: React.FC = () => {
 
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [collabProfile, setCollabProfile] = useState<any>(null);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -74,6 +75,22 @@ const ProfilePage: React.FC = () => {
         } as any);
       } else {
         fetchNetworkStatus(data.id, token);
+      }
+
+      // Fetch collaboration profile
+      try {
+        const collabEndpoint = userId 
+          ? `http://localhost:5000/api/collaborator/profile/${userId}` 
+          : 'http://localhost:5000/api/collaborator/profile/me';
+        const collabRes = await fetch(collabEndpoint, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (collabRes.ok) {
+          const cData = await collabRes.json();
+          setCollabProfile(cData);
+        } else {
+          setCollabProfile(null);
+        }
+      } catch {
+        // Optional profile data
       }
     } catch (err: any) {
       console.error(err);
@@ -307,6 +324,84 @@ const ProfilePage: React.FC = () => {
                   <span className="info-label">Website / LinkedIn</span>
                   <span className="info-value"><a href="#">https://linkedin.com/in/{user.name ? user.name.split(' ')[0].toLowerCase() : ''}</a></span>
                 </div>
+              </div>
+            </div>
+
+            {/* Researcher Collaboration Status & Profile */}
+            <div className="grid-card" id="collab-profile-card">
+              <div className="card-header">
+                <div className="card-title">
+                  <Handshake size={20} /> Researcher Collaboration Profile
+                </div>
+                {!userId ? (
+                  <button 
+                    id="btn-manage-collab-profile"
+                    className="edit-pill" 
+                    onClick={() => navigate('/collaborators?tab=my-profile')}
+                  >
+                    <Edit2 size={14} /> Edit Collab Profile
+                  </button>
+                ) : (
+                  collabProfile?.visibility && (
+                    <span className="visibility-badge" style={{ fontSize: '0.75rem', padding: '0.2rem 0.5rem', background: '#f1f5f9', borderRadius: '6px', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                      <Shield size={12} /> {collabProfile.visibility}
+                    </span>
+                  )
+                )}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                  <span style={{
+                    display: 'inline-flex', 
+                    alignItems: 'center', 
+                    gap: '0.3rem', 
+                    fontSize: '0.78rem', 
+                    padding: '0.25rem 0.65rem', 
+                    borderRadius: '20px',
+                    background: collabProfile?.isOpenToCollaboration !== false ? '#dcfce7' : '#f1f5f9',
+                    color: collabProfile?.isOpenToCollaboration !== false ? '#15803d' : '#64748b',
+                    fontWeight: 600
+                  }}>
+                    {collabProfile?.isOpenToCollaboration !== false ? (
+                      <>
+                        <CheckCircle size={13} /> Open to Collaboration
+                      </>
+                    ) : (
+                      'Not Currently Seeking'
+                    )}
+                  </span>
+                  {collabProfile?.country && (
+                    <span style={{ fontSize: '0.85rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <MapPin size={13} /> {collabProfile.country}
+                    </span>
+                  )}
+                </div>
+
+                {collabProfile?.expertiseAreas && (
+                  <div>
+                    <span className="info-label" style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.8rem' }}>Expertise Areas:</span>
+                    <div className="tags-container">
+                      {collabProfile.expertiseAreas.split(',').map((tag: string, idx: number) => (
+                        <span key={idx} className="tag-pill">{tag.trim()}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {collabProfile?.researchInterests && (
+                  <div>
+                    <span className="info-label" style={{ display: 'block', marginBottom: '0.2rem', fontSize: '0.8rem' }}>Research Topics:</span>
+                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
+                      {collabProfile.researchInterests}
+                    </p>
+                  </div>
+                )}
+
+                {!collabProfile && !userId && (
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-secondary)', margin: 0 }}>
+                    You haven't set up your collaborator discovery profile yet. Configure it to be discovered by researchers worldwide.
+                  </p>
+                )}
               </div>
             </div>
 
