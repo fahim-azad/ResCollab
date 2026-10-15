@@ -59,11 +59,20 @@ namespace ResCollab.Api.Controllers
 
         // GET /api/university/{id}
         [HttpGet("{id}")]
-        public async Task<IActionResult> GetUniversity(int id)
+        public async Task<IActionResult> GetUniversity(int id, [FromQuery] string? visibility = null)
         {
-            var university = await _context.Universities
-                .Include(u => u.Departments.Where(d => d.Visibility == "Public"))
-                .FirstOrDefaultAsync(u => u.Id == id);
+            var query = _context.Universities.AsQueryable();
+
+            if (!string.IsNullOrWhiteSpace(visibility) && visibility != "All")
+            {
+                query = query.Include(u => u.Departments.Where(d => d.Visibility == visibility));
+            }
+            else
+            {
+                query = query.Include(u => u.Departments);
+            }
+
+            var university = await query.FirstOrDefaultAsync(u => u.Id == id);
 
             if (university == null) return NotFound("University not found.");
 
@@ -79,11 +88,14 @@ namespace ResCollab.Api.Controllers
                 university.CreatedAt,
                 Departments = university.Departments.Select(d => new {
                     d.Id,
+                    d.UniversityId,
                     d.Name,
                     d.Description,
                     d.HeadOfDepartment,
                     d.Website,
-                    d.Visibility
+                    d.Visibility,
+                    d.CreatedAt,
+                    d.UpdatedAt
                 })
             });
         }
@@ -163,13 +175,19 @@ namespace ResCollab.Api.Controllers
 
         // GET /api/university/{universityId}/departments
         [HttpGet("{universityId}/departments")]
-        public async Task<IActionResult> GetDepartments(int universityId)
+        public async Task<IActionResult> GetDepartments(int universityId, [FromQuery] string? visibility = null)
         {
             var uniExists = await _context.Universities.AnyAsync(u => u.Id == universityId);
             if (!uniExists) return NotFound("University not found.");
 
-            var departments = await _context.Departments
-                .Where(d => d.UniversityId == universityId && d.Visibility == "Public")
+            var query = _context.Departments.Where(d => d.UniversityId == universityId);
+
+            if (!string.IsNullOrWhiteSpace(visibility) && visibility != "All")
+            {
+                query = query.Where(d => d.Visibility == visibility);
+            }
+
+            var departments = await query
                 .OrderBy(d => d.Name)
                 .Select(d => new {
                     d.Id,
@@ -179,7 +197,8 @@ namespace ResCollab.Api.Controllers
                     d.HeadOfDepartment,
                     d.Website,
                     d.Visibility,
-                    d.CreatedAt
+                    d.CreatedAt,
+                    d.UpdatedAt
                 })
                 .ToListAsync();
 
@@ -249,6 +268,28 @@ namespace ResCollab.Api.Controllers
             dept.Description = req.Description;
             dept.HeadOfDepartment = req.HeadOfDepartment;
             dept.Website = req.Website;
+            dept.Visibility = req.Visibility;
+            dept.UpdatedAt = DateTime.UtcNow;
+
+            await _context.SaveChangesAsync();
+            return Ok(dept);
+        }
+
+        public class UpdateDepartmentVisibilityRequest
+        {
+            public string Visibility { get; set; } = "Public";
+        }
+
+        // PATCH /api/university/{universityId}/departments/{id}/visibility
+        [HttpPatch("{universityId}/departments/{id}/visibility")]
+        public async Task<IActionResult> UpdateDepartmentVisibility(int universityId, int id, [FromBody] UpdateDepartmentVisibilityRequest req)
+        {
+            var dept = await _context.Departments
+                .FirstOrDefaultAsync(d => d.Id == id && d.UniversityId == universityId);
+
+            if (dept == null) return NotFound("Department not found.");
+            if (string.IsNullOrWhiteSpace(req.Visibility)) return BadRequest("Visibility value is required.");
+
             dept.Visibility = req.Visibility;
             dept.UpdatedAt = DateTime.UtcNow;
 
