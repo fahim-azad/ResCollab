@@ -45,22 +45,23 @@ namespace ResCollab.Api.Controllers
                 .Include(f => f.PostedBy)
                 .AsQueryable();
 
-            // Default to Open if no status filter given
-            if (!string.IsNullOrWhiteSpace(status))
+            // Status filter: "All" ignores status; empty/null defaults to "Open"; otherwise exact match
+            if (!string.IsNullOrWhiteSpace(status) && !string.Equals(status, "All", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(f => f.Status == status);
-            else
+            else if (string.IsNullOrWhiteSpace(status))
                 query = query.Where(f => f.Status == "Open");
 
-            if (!string.IsNullOrWhiteSpace(fundingType))
+            if (!string.IsNullOrWhiteSpace(fundingType) && !string.Equals(fundingType, "All", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(f => f.FundingType == fundingType);
 
-            if (!string.IsNullOrWhiteSpace(researchArea))
+            if (!string.IsNullOrWhiteSpace(researchArea) && !string.Equals(researchArea, "All", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(f => f.ResearchArea != null && f.ResearchArea.Contains(researchArea));
 
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(f =>
                     f.Title.Contains(search) ||
                     f.Provider.Contains(search) ||
+                    (f.ResearchArea != null && f.ResearchArea.Contains(search)) ||
                     (f.Description != null && f.Description.Contains(search)));
 
             var results = await query
@@ -74,8 +75,14 @@ namespace ResCollab.Api.Controllers
                     f.FundingType,
                     f.FundingAmount,
                     f.ResearchArea,
+                    f.Description,
+                    f.Eligibility,
+                    f.Requirements,
+                    f.ApplicationUrl,
+                    f.ApplicationInfo,
                     f.Deadline,
                     f.Status,
+                    f.PostedById,
                     f.CreatedAt,
                     PostedByName = f.PostedBy != null ? f.PostedBy.FullName : null
                 })

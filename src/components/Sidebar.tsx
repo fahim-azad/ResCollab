@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen } from 'lucide-react';
+import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen, DollarSign } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './DashboardLayout.css';
 
@@ -95,6 +95,9 @@ const Sidebar: React.FC = () => {
         </NavLink>
         <NavLink to="/publications" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <BookOpen size={20} /> Publications
+        </NavLink>
+        <NavLink to="/funding" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+          <DollarSign size={20} /> Funding
         </NavLink>
         <NavLink to="/saved" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <Bookmark size={20} /> Saved
