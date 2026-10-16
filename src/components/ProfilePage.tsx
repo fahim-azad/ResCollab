@@ -4,8 +4,9 @@ import {
   Search, Folder, User,
   Bell, Edit2, User as UserIcon, BookOpen, Settings as SettingsIcon,
   MapPin, Mail, Building, GraduationCap, Globe, Link as LinkIcon,
-  Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield, ExternalLink
+  Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield, ExternalLink, Eye
 } from 'lucide-react';
+import PublicationDetailsModal, { detectLinkProvider } from './PublicationDetailsModal';
 import './ProfilePage.css';
 
 interface ProfileData {
@@ -35,6 +36,7 @@ const ProfilePage: React.FC = () => {
   const [collabProfile, setCollabProfile] = useState<any>(null);
   const [userPublications, setUserPublications] = useState<any[]>([]);
   const [activeProfileTab, setActiveProfileTab] = useState<'overview' | 'publications'>('overview');
+  const [selectedPublication, setSelectedPublication] = useState<any | null>(null);
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -566,45 +568,75 @@ const ProfilePage: React.FC = () => {
                 </div>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  {userPublications.map((pub: any) => (
-                    <div key={pub.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
-                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}>
-                          {pub.publicationType}
-                        </span>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#f1f5f9', color: '#475569' }}>
-                          {pub.publicationYear}
-                        </span>
-                      </div>
-                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0' }}>{pub.title}</h3>
-                      <p style={{ fontSize: '0.88rem', color: '#475569', margin: '0 0 0.35rem 0' }}>{pub.authors}</p>
-                      {pub.journalOrConference && (
-                        <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic', margin: '0 0 0.5rem 0' }}>{pub.journalOrConference}</p>
-                      )}
-                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {pub.doi && (
-                          <a 
-                            href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi}`} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
-                          >
-                            DOI: {pub.doi} <ExternalLink size={12} />
-                          </a>
+                  {userPublications.map((pub: any) => {
+                    const provider = detectLinkProvider(pub.sourceLink);
+                    const cleanDoi = pub.doi?.replace(/^https?:\/\/doi\.org\//i, '').replace(/^doi:/i, '').trim();
+                    return (
+                      <div key={pub.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}>
+                            {pub.publicationType}
+                          </span>
+                          <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#f1f5f9', color: '#475569' }}>
+                            {pub.publicationYear}
+                          </span>
+                        </div>
+                        <h3 
+                          style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0', cursor: 'pointer' }}
+                          onClick={() => setSelectedPublication(pub)}
+                          title="Click to view details and citation"
+                        >
+                          {pub.title}
+                        </h3>
+                        <p style={{ fontSize: '0.88rem', color: '#475569', margin: '0 0 0.35rem 0' }}>{pub.authors}</p>
+                        {pub.journalOrConference && (
+                          <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic', margin: '0 0 0.5rem 0' }}>{pub.journalOrConference}</p>
                         )}
-                        {pub.sourceLink && (
-                          <a 
-                            href={pub.sourceLink} 
-                            target="_blank" 
-                            rel="noreferrer" 
-                            style={{ fontSize: '0.8rem', color: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                        <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                          {cleanDoi && (
+                            <a 
+                              href={`https://doi.org/${cleanDoi}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}
+                            >
+                              DOI: {cleanDoi} <ExternalLink size={11} />
+                            </a>
+                          )}
+                          {pub.sourceLink && (
+                            <a 
+                              href={pub.sourceLink.startsWith('http') ? pub.sourceLink : `https://${pub.sourceLink}`} 
+                              target="_blank" 
+                              rel="noopener noreferrer" 
+                              style={{ fontSize: '0.8rem', color: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', fontWeight: 600 }}
+                            >
+                              <LinkIcon size={12} /> {provider?.name || 'Paper Source'} <ExternalLink size={11} />
+                            </a>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setSelectedPublication(pub)}
+                            style={{ 
+                              marginLeft: 'auto', 
+                              display: 'inline-flex', 
+                              alignItems: 'center', 
+                              gap: '0.35rem', 
+                              padding: '0.35rem 0.75rem', 
+                              fontSize: '0.78rem', 
+                              fontWeight: 600, 
+                              color: '#2563eb', 
+                              background: '#eff6ff', 
+                              border: '1px solid #bfdbfe', 
+                              borderRadius: '6px', 
+                              cursor: 'pointer' 
+                            }}
                           >
-                            Paper Source <ExternalLink size={12} />
-                          </a>
-                        )}
+                            <Eye size={12} /> Details & Citation
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -664,6 +696,15 @@ const ProfilePage: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Publication Details Modal */}
+      {selectedPublication && (
+        <PublicationDetailsModal
+          publication={selectedPublication}
+          isOwner={!userId}
+          onClose={() => setSelectedPublication(null)}
+        />
       )}
     </>
   );

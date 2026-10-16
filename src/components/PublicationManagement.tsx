@@ -1,16 +1,50 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  BookOpen, Plus, Search, Filter, Globe, Lock,
+  BookOpen, Plus, Search, Globe, Lock,
   ExternalLink, Calendar, Users, FileText, CheckCircle2,
-  AlertCircle, Edit3, Trash2, Eye, Shield, RefreshCw,
-  Sparkles, Award, FileCode, Check, X
+  AlertCircle, Edit3, Trash2, Eye, RefreshCw,
+  Sparkles, Award, Check, X, Link as LinkIcon,
+  ArrowUpDown, Copy
 } from 'lucide-react';
-import PublicationDetailsModal, { type PublicationDetail } from './PublicationDetailsModal';
+import PublicationDetailsModal, { 
+  type PublicationDetail, 
+  detectLinkProvider 
+} from './PublicationDetailsModal';
 import './PublicationManagement.css';
 
 const API = 'http://localhost:5000/api';
 
 const PUBLICATION_TYPES = ['Journal', 'Conference', 'Book', 'Thesis', 'Preprint', 'Other'];
+
+const POPULAR_VENUES = [
+  'IEEE Transactions on Software Engineering',
+  'ACM SIGKDD Conference',
+  'NeurIPS',
+  'ICSE',
+  'Nature',
+  'Science',
+  'arXiv Preprint'
+];
+
+export const normalizeDoi = (raw?: string | null): string => {
+  if (!raw) return '';
+  return raw
+    .trim()
+    .replace(/^https?:\/\/(dx\.)?doi\.org\//i, '')
+    .replace(/^doi:/i, '')
+    .trim()
+    .replace(/^\/+|\/+$/g, '');
+};
+
+export const normalizeUrl = (u?: string | null): string => {
+  if (!u) return '';
+  const trimmed = u.trim();
+  if (!trimmed) return '';
+  if (!/^https?:\/\//i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+  return trimmed;
+};
 
 export const PublicationManagement: React.FC = () => {
   const token = localStorage.getItem('token') || '';
@@ -32,13 +66,18 @@ export const PublicationManagement: React.FC = () => {
   const [exploreType, setExploreType] = useState<string>('All');
   const [exploreYear, setExploreYear] = useState<string>('');
 
-  // Filters for My Publications tab
+  // Filters and Sorting for My Publications tab
   const [mySearch, setMySearch] = useState<string>('');
   const [myTypeFilter, setMyTypeFilter] = useState<string>('All');
+  const [myYearFilter, setMyYearFilter] = useState<string>('All');
+  const [mySortBy, setMySortBy] = useState<'year-desc' | 'year-asc' | 'title-asc'>('year-desc');
 
   // Modals state
   const [viewPublication, setViewPublication] = useState<PublicationDetail | null>(null);
   const [editingPublication, setEditingPublication] = useState<PublicationDetail | null>(null);
+
+  // Copy feedback state
+  const [copiedDoiId, setCopiedDoiId] = useState<number | null>(null);
 
   // Form state (used for Add and Edit)
   const initialFormState = {
@@ -54,6 +93,7 @@ export const PublicationManagement: React.FC = () => {
   };
   const [form, setForm] = useState(initialFormState);
   const [submitting, setSubmitting] = useState<boolean>(false);
+  const [fetchingDoiMetadata, setFetchingDoiMetadata] = useState<boolean>(false);
   const [formError, setFormError] = useState<string | null>(null);
 
   // Fetch My Publications
@@ -164,10 +204,82 @@ export const PublicationManagement: React.FC = () => {
     setFormError(null);
   };
 
+  // Auto-fetch publication metadata from CrossRef API
+  const handleFetchDoiMetadata = async () => {
+    const clean = normalizeDoi(form.doi);
+    if (!clean || !clean.startsWith('10.') || !clean.includes('/')) {
+      setFormError("Please enter a valid DOI (e.g. 10.1109/TSE.2024.1234567 or doi.org URL) before auto-fetching.");
+      return;
+    }
+
+    setFetchingDoiMetadata(true);
+    setFormError(null);
+    try {
+      const res = await fetch(`https://api.crossref.org/works/${encodeURIComponent(clean)}`);
+      if (!res.ok) {
+        throw new Error(`CrossRef lookup returned status ${res.status}`);
+      }
+      const json = await res.json();
+      const item = json.message;
+      if (item) {
+        const title = Array.isArray(item.title) ? item.title[0] : (item.title || '');
+        const authors = Array.isArray(item.author)
+          ? item.author
+              .map((a: any) => [a.given, a.family].filter(Boolean).join(' '))
+              .filter(Boolean)
+              .join(', ')
+          : '';
+        const venue = Array.isArray(item['container-title'])
+          ? item['container-title'][0]
+          : (item['container-title'] || '');
+        
+        const year =
+          item['published-print']?.['date-parts']?.[0]?.[0] ||
+          item['published-online']?.['date-parts']?.[0]?.[0] ||
+          item.issued?.['date-parts']?.[0]?.[0] ||
+          form.publicationYear;
+
+        let type = 'Journal';
+        if (item.type === 'proceedings-article') type = 'Conference';
+        else if (item.type === 'book-chapter' || item.type === 'book') type = 'Book';
+        else if (item.type === 'posted-content') type = 'Preprint';
+        else if (item.type === 'dissertation') type = 'Thesis';
+
+        const url = item.resource?.primary?.url || item.URL || (clean ? `https://doi.org/${clean}` : '');
+        const abstractText = item.abstract ? item.abstract.replace(/<[^>]+>/g, '').trim() : '';
+
+        setForm(prev => ({
+          ...prev,
+          doi: clean,
+          title: title || prev.title,
+          authors: authors || prev.authors,
+          journalOrConference: venue || prev.journalOrConference,
+          publicationYear: Number(year) || prev.publicationYear,
+          publicationType: type,
+          sourceLink: url || prev.sourceLink,
+          abstract: abstractText || prev.abstract
+        }));
+
+        setFeedbackMsg({
+          type: 'success',
+          text: `Metadata imported from CrossRef: "${title ? (title.length > 50 ? title.slice(0, 50) + '…' : title) : clean}"`
+        });
+        setTimeout(() => setFeedbackMsg(null), 4500);
+      }
+    } catch {
+      setFormError('Could not auto-fetch metadata for this DOI. You can enter or adjust the bibliographic details manually.');
+    } finally {
+      setFetchingDoiMetadata(false);
+    }
+  };
+
   // Handle Save (Add or Update)
   const handleSubmitPublication = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError(null);
+
+    const cleanDoi = normalizeDoi(form.doi);
+    const cleanSource = normalizeUrl(form.sourceLink);
 
     // Client-side quick checks
     if (!form.title.trim()) {
@@ -183,12 +295,12 @@ export const PublicationManagement: React.FC = () => {
       setFormError(`Publication year must be between 1900 and ${currentYear + 1}.`);
       return;
     }
-    if (!form.doi.trim() && !form.journalOrConference.trim() && !form.sourceLink.trim()) {
+    if (!cleanDoi && !form.journalOrConference.trim() && !cleanSource) {
       setFormError('At least one of DOI, Journal/Conference, or Source Link must be provided.');
       return;
     }
-    if (form.doi.trim() && !form.doi.trim().startsWith('10.')) {
-      setFormError("DOI format appears invalid. DOIs should start with '10.'.");
+    if (cleanDoi && (!cleanDoi.startsWith('10.') || !cleanDoi.includes('/'))) {
+      setFormError("DOI format appears invalid. Standard DOIs begin with '10.' followed by a registrant code (e.g. 10.1109/TSE.2024.1234567).");
       return;
     }
 
@@ -203,11 +315,11 @@ export const PublicationManagement: React.FC = () => {
       const payload = {
         title: form.title.trim(),
         authors: form.authors.trim(),
-        doi: form.doi.trim() || null,
+        doi: cleanDoi || null,
         journalOrConference: form.journalOrConference.trim() || null,
         publicationYear: Number(form.publicationYear),
         abstract: form.abstract.trim() || null,
-        sourceLink: form.sourceLink.trim() || null,
+        sourceLink: cleanSource || null,
         publicationType: form.publicationType,
         visibility: form.visibility
       };
@@ -226,7 +338,7 @@ export const PublicationManagement: React.FC = () => {
           type: 'success',
           text: isEditing
             ? 'Publication updated successfully!'
-            : 'Publication added to your portfolio!'
+            : 'Publication added to your academic portfolio!'
         });
         setTimeout(() => setFeedbackMsg(null), 4000);
         setForm(initialFormState);
@@ -289,17 +401,40 @@ export const PublicationManagement: React.FC = () => {
     }
   };
 
-  // Filtered My Publications
+  // Copy DOI to clipboard helper
+  const handleCopyDoi = (pubId: number, doi: string) => {
+    const clean = normalizeDoi(doi);
+    navigator.clipboard.writeText(clean);
+    setCopiedDoiId(pubId);
+    setTimeout(() => setCopiedDoiId(null), 2000);
+  };
+
+  // Available Years for filter dropdown
+  const availableYears = useMemo(() => {
+    const years = Array.from(new Set(myPublications.map(p => p.publicationYear)));
+    return years.sort((a, b) => b - a);
+  }, [myPublications]);
+
+  // Filtered and Sorted My Publications
   const filteredMyPublications = useMemo(() => {
-    return myPublications.filter(p => {
-      const matchSearch = !mySearch.trim() ||
-        p.title.toLowerCase().includes(mySearch.toLowerCase()) ||
-        p.authors.toLowerCase().includes(mySearch.toLowerCase()) ||
-        (p.journalOrConference && p.journalOrConference.toLowerCase().includes(mySearch.toLowerCase()));
-      const matchType = myTypeFilter === 'All' || p.publicationType === myTypeFilter;
-      return matchSearch && matchType;
-    });
-  }, [myPublications, mySearch, myTypeFilter]);
+    return myPublications
+      .filter(p => {
+        const matchSearch = !mySearch.trim() ||
+          p.title.toLowerCase().includes(mySearch.toLowerCase()) ||
+          p.authors.toLowerCase().includes(mySearch.toLowerCase()) ||
+          (p.doi && p.doi.toLowerCase().includes(mySearch.toLowerCase())) ||
+          (p.journalOrConference && p.journalOrConference.toLowerCase().includes(mySearch.toLowerCase()));
+        const matchType = myTypeFilter === 'All' || p.publicationType === myTypeFilter;
+        const matchYear = myYearFilter === 'All' || p.publicationYear.toString() === myYearFilter;
+        return matchSearch && matchType && matchYear;
+      })
+      .sort((a, b) => {
+        if (mySortBy === 'year-desc') return b.publicationYear - a.publicationYear;
+        if (mySortBy === 'year-asc') return a.publicationYear - b.publicationYear;
+        if (mySortBy === 'title-asc') return a.title.localeCompare(b.title);
+        return 0;
+      });
+  }, [myPublications, mySearch, myTypeFilter, myYearFilter, mySortBy]);
 
   // Statistics calculation for My Publications
   const stats = useMemo(() => {
@@ -321,6 +456,8 @@ export const PublicationManagement: React.FC = () => {
       default: return 'pub-type-other';
     }
   };
+
+  const previewCleanDoi = normalizeDoi(form.doi);
 
   return (
     <div className="pub-container" id="publication-management-page">
@@ -457,7 +594,7 @@ export const PublicationManagement: React.FC = () => {
               <input
                 id="search-my-publications"
                 type="text"
-                placeholder="Search your publications by title, author, or venue…"
+                placeholder="Search your publications by title, author, venue, or DOI…"
                 value={mySearch}
                 onChange={e => setMySearch(e.target.value)}
               />
@@ -473,19 +610,52 @@ export const PublicationManagement: React.FC = () => {
               )}
             </div>
 
-            <div className="type-filter-group">
-              <span className="filter-label">Type:</span>
-              <select
-                id="filter-my-type"
-                value={myTypeFilter}
-                onChange={e => setMyTypeFilter(e.target.value)}
-                className="pub-select-filter"
-              >
-                <option value="All">All Types</option>
-                {PUBLICATION_TYPES.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
+            <div className="toolbar-dropdowns">
+              <div className="type-filter-group">
+                <span className="filter-label">Type:</span>
+                <select
+                  id="filter-my-type"
+                  value={myTypeFilter}
+                  onChange={e => setMyTypeFilter(e.target.value)}
+                  className="pub-select-filter"
+                >
+                  <option value="All">All Types</option>
+                  {PUBLICATION_TYPES.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+              </div>
+
+              {availableYears.length > 0 && (
+                <div className="type-filter-group">
+                  <span className="filter-label">Year:</span>
+                  <select
+                    id="filter-my-year"
+                    value={myYearFilter}
+                    onChange={e => setMyYearFilter(e.target.value)}
+                    className="pub-select-filter"
+                  >
+                    <option value="All">All Years</option>
+                    {availableYears.map(y => (
+                      <option key={y} value={y.toString()}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div className="type-filter-group">
+                <span className="filter-label"><ArrowUpDown size={13} /> Sort:</span>
+                <select
+                  id="filter-my-sort"
+                  value={mySortBy}
+                  onChange={e => setMySortBy(e.target.value as any)}
+                  className="pub-select-filter"
+                >
+                  <option value="year-desc">Year (Newest First)</option>
+                  <option value="year-asc">Year (Oldest First)</option>
+                  <option value="title-asc">Title (A - Z)</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -520,123 +690,139 @@ export const PublicationManagement: React.FC = () => {
             </div>
           ) : (
             <div className="pub-cards-list" id="my-publications-grid">
-              {filteredMyPublications.map(pub => (
-                <div
-                  key={pub.id}
-                  className="pub-card"
-                  id={`my-pub-card-${pub.id}`}
-                >
-                  <div className="pub-card-top">
-                    <div className="pub-card-badges">
-                      <span className={`pub-type-badge ${getBadgeColorClass(pub.publicationType)}`}>
-                        {pub.publicationType}
-                      </span>
-                      <span className="pub-year-badge">
-                        <Calendar size={12} /> {pub.publicationYear}
-                      </span>
-                      <button
-                        type="button"
-                        id={`btn-toggle-vis-${pub.id}`}
-                        className={`pub-vis-badge interactive ${pub.visibility.toLowerCase()}`}
-                        title="Click to toggle visibility"
-                        onClick={() => handleToggleVisibility(pub.id, pub.visibility)}
-                      >
-                        {pub.visibility === 'Public' ? <Globe size={11} /> : <Lock size={11} />}
-                        {pub.visibility}
-                      </button>
-                    </div>
-
-                    <div className="pub-card-quick-actions">
-                      <button
-                        id={`btn-edit-pub-${pub.id}`}
-                        type="button"
-                        className="pub-icon-action-btn"
-                        title="Edit Publication"
-                        onClick={() => {
-                          handleStartEdit(pub);
-                          setActiveTab('add');
-                        }}
-                      >
-                        <Edit3 size={15} />
-                      </button>
-                      <button
-                        id={`btn-delete-pub-${pub.id}`}
-                        type="button"
-                        className="pub-icon-action-btn delete"
-                        title="Delete Publication"
-                        onClick={() => {
-                          if (window.confirm(`Delete publication "${pub.title}"?`)) {
-                            handleDeletePublication(pub.id);
-                          }
-                        }}
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <h3
-                    className="pub-card-title clickable"
-                    onClick={() => handleOpenDetails(pub.id)}
-                    title="Click to view full details"
+              {filteredMyPublications.map(pub => {
+                const cleanDoiVal = normalizeDoi(pub.doi);
+                const linkProvider = detectLinkProvider(pub.sourceLink);
+                return (
+                  <div
+                    key={pub.id}
+                    className="pub-card"
+                    id={`my-pub-card-${pub.id}`}
                   >
-                    {pub.title}
-                  </h3>
-
-                  <p className="pub-card-authors">
-                    <Users size={14} className="pub-inline-icon" />
-                    <span>{pub.authors}</span>
-                  </p>
-
-                  {pub.journalOrConference && (
-                    <p className="pub-card-venue">
-                      <FileText size={14} className="pub-inline-icon" />
-                      <span>{pub.journalOrConference}</span>
-                    </p>
-                  )}
-
-                  {pub.abstract && (
-                    <p className="pub-card-abstract-snippet">
-                      {pub.abstract.length > 170 ? pub.abstract.slice(0, 170) + '…' : pub.abstract}
-                    </p>
-                  )}
-
-                  <div className="pub-card-footer">
-                    <div className="pub-card-links">
-                      {pub.doi && (
-                        <a
-                          href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="pub-doi-link"
-                          title="Open DOI resolver"
+                    <div className="pub-card-top">
+                      <div className="pub-card-badges">
+                        <span className={`pub-type-badge ${getBadgeColorClass(pub.publicationType)}`}>
+                          {pub.publicationType}
+                        </span>
+                        <span className="pub-year-badge">
+                          <Calendar size={12} /> {pub.publicationYear}
+                        </span>
+                        <button
+                          type="button"
+                          id={`btn-toggle-vis-${pub.id}`}
+                          className={`pub-vis-badge interactive ${pub.visibility.toLowerCase()}`}
+                          title="Click to toggle visibility"
+                          onClick={() => handleToggleVisibility(pub.id, pub.visibility)}
                         >
-                          DOI: {pub.doi} <ExternalLink size={11} />
-                        </a>
-                      )}
-                      {pub.sourceLink && (
-                        <a
-                          href={pub.sourceLink}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="pub-source-link"
+                          {pub.visibility === 'Public' ? <Globe size={11} /> : <Lock size={11} />}
+                          {pub.visibility}
+                        </button>
+                      </div>
+
+                      <div className="pub-card-quick-actions">
+                        <button
+                          id={`btn-edit-pub-${pub.id}`}
+                          type="button"
+                          className="pub-icon-action-btn"
+                          title="Edit Publication"
+                          onClick={() => {
+                            handleStartEdit(pub);
+                            setActiveTab('add');
+                          }}
                         >
-                          Full Paper <ExternalLink size={11} />
-                        </a>
-                      )}
+                          <Edit3 size={15} />
+                        </button>
+                        <button
+                          id={`btn-delete-pub-${pub.id}`}
+                          type="button"
+                          className="pub-icon-action-btn delete"
+                          title="Delete Publication"
+                          onClick={() => {
+                            if (window.confirm(`Delete publication "${pub.title}"?`)) {
+                              handleDeletePublication(pub.id);
+                            }
+                          }}
+                        >
+                          <Trash2 size={15} />
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      id={`btn-view-details-${pub.id}`}
-                      type="button"
-                      className="pub-view-details-btn"
+                    <h3
+                      className="pub-card-title clickable"
                       onClick={() => handleOpenDetails(pub.id)}
+                      title="Click to view full details"
                     >
-                      <Eye size={14} /> View Details
-                    </button>
+                      {pub.title}
+                    </h3>
+
+                    <p className="pub-card-authors">
+                      <Users size={14} className="pub-inline-icon" />
+                      <span>{pub.authors}</span>
+                    </p>
+
+                    {pub.journalOrConference && (
+                      <p className="pub-card-venue">
+                        <FileText size={14} className="pub-inline-icon" />
+                        <span>{pub.journalOrConference}</span>
+                      </p>
+                    )}
+
+                    {pub.abstract && (
+                      <p className="pub-card-abstract-snippet">
+                        {pub.abstract.length > 170 ? pub.abstract.slice(0, 170) + '…' : pub.abstract}
+                      </p>
+                    )}
+
+                    <div className="pub-card-footer">
+                      <div className="pub-card-links">
+                        {cleanDoiVal && (
+                          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                            <a
+                              href={`https://doi.org/${cleanDoiVal}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="pub-doi-link"
+                              title="Open DOI resolver"
+                            >
+                              DOI: {cleanDoiVal} <ExternalLink size={10} />
+                            </a>
+                            <button
+                              type="button"
+                              className="icon-copy-btn"
+                              style={{ width: '22px', height: '22px', border: 'none', background: 'transparent' }}
+                              title="Copy DOI"
+                              onClick={() => handleCopyDoi(pub.id, cleanDoiVal)}
+                            >
+                              {copiedDoiId === pub.id ? <Check size={12} style={{ color: '#10b981' }} /> : <Copy size={12} />}
+                            </button>
+                          </div>
+                        )}
+                        {pub.sourceLink && (
+                          <a
+                            href={pub.sourceLink.startsWith('http') ? pub.sourceLink : `https://${pub.sourceLink}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`pub-source-link ${linkProvider?.badgeClass || ''}`}
+                            title={`Open ${linkProvider?.name || 'source paper'}`}
+                          >
+                            <LinkIcon size={11} /> {linkProvider?.name || 'Full Paper'} <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+
+                      <button
+                        id={`btn-view-details-${pub.id}`}
+                        type="button"
+                        className="pub-view-details-btn"
+                        onClick={() => handleOpenDetails(pub.id)}
+                      >
+                        <Eye size={14} /> View Details
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -652,7 +838,7 @@ export const PublicationManagement: React.FC = () => {
               <input
                 id="filter-pub-search"
                 type="text"
-                placeholder="Search across public papers, authors, conferences, or keywords…"
+                placeholder="Search across public papers, authors, venues, keywords, or DOI…"
                 value={exploreSearch}
                 onChange={e => setExploreSearch(e.target.value)}
               />
@@ -712,73 +898,87 @@ export const PublicationManagement: React.FC = () => {
             </div>
           ) : (
             <div className="pub-cards-list" id="explore-publications-grid">
-              {publicPublications.map(pub => (
-                <div
-                  key={pub.id}
-                  className="pub-card explore-card"
-                  id={`explore-pub-card-${pub.id}`}
-                >
-                  <div className="pub-card-top">
-                    <div className="pub-card-badges">
-                      <span className={`pub-type-badge ${getBadgeColorClass(pub.publicationType)}`}>
-                        {pub.publicationType}
-                      </span>
-                      <span className="pub-year-badge">
-                        <Calendar size={12} /> {pub.publicationYear}
-                      </span>
-                      {pub.ownerName && (
-                        <span className="pub-owner-badge">
-                          By {pub.ownerName}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <h3
-                    className="pub-card-title clickable"
-                    onClick={() => handleOpenDetails(pub.id)}
-                    title="Click to view full details"
+              {publicPublications.map(pub => {
+                const cleanDoiVal = normalizeDoi(pub.doi);
+                const linkProvider = detectLinkProvider(pub.sourceLink);
+                return (
+                  <div
+                    key={pub.id}
+                    className="pub-card explore-card"
+                    id={`explore-pub-card-${pub.id}`}
                   >
-                    {pub.title}
-                  </h3>
-
-                  <p className="pub-card-authors">
-                    <Users size={14} className="pub-inline-icon" />
-                    <span>{pub.authors}</span>
-                  </p>
-
-                  {pub.journalOrConference && (
-                    <p className="pub-card-venue">
-                      <FileText size={14} className="pub-inline-icon" />
-                      <span>{pub.journalOrConference}</span>
-                    </p>
-                  )}
-
-                  <div className="pub-card-footer">
-                    <div className="pub-card-links">
-                      {pub.doi && (
-                        <a
-                          href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="pub-doi-link"
-                        >
-                          DOI: {pub.doi} <ExternalLink size={11} />
-                        </a>
-                      )}
+                    <div className="pub-card-top">
+                      <div className="pub-card-badges">
+                        <span className={`pub-type-badge ${getBadgeColorClass(pub.publicationType)}`}>
+                          {pub.publicationType}
+                        </span>
+                        <span className="pub-year-badge">
+                          <Calendar size={12} /> {pub.publicationYear}
+                        </span>
+                        {pub.ownerName && (
+                          <span className="pub-owner-badge">
+                            By {pub.ownerName}
+                          </span>
+                        )}
+                      </div>
                     </div>
 
-                    <button
-                      id={`btn-explore-view-details-${pub.id}`}
-                      type="button"
-                      className="pub-view-details-btn"
+                    <h3
+                      className="pub-card-title clickable"
                       onClick={() => handleOpenDetails(pub.id)}
+                      title="Click to view full details"
                     >
-                      <Eye size={14} /> Full Details & Citation
-                    </button>
+                      {pub.title}
+                    </h3>
+
+                    <p className="pub-card-authors">
+                      <Users size={14} className="pub-inline-icon" />
+                      <span>{pub.authors}</span>
+                    </p>
+
+                    {pub.journalOrConference && (
+                      <p className="pub-card-venue">
+                        <FileText size={14} className="pub-inline-icon" />
+                        <span>{pub.journalOrConference}</span>
+                      </p>
+                    )}
+
+                    <div className="pub-card-footer">
+                      <div className="pub-card-links">
+                        {cleanDoiVal && (
+                          <a
+                            href={`https://doi.org/${cleanDoiVal}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="pub-doi-link"
+                          >
+                            DOI: {cleanDoiVal} <ExternalLink size={10} />
+                          </a>
+                        )}
+                        {pub.sourceLink && (
+                          <a
+                            href={pub.sourceLink.startsWith('http') ? pub.sourceLink : `https://${pub.sourceLink}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`pub-source-link ${linkProvider?.badgeClass || ''}`}
+                          >
+                            <LinkIcon size={11} /> {linkProvider?.name || 'Full Paper'} <ExternalLink size={10} />
+                          </a>
+                        )}
+                      </div>
+
+                      <button
+                        id={`btn-explore-view-details-${pub.id}`}
+                        type="button"
+                        className="pub-view-details-btn"
+                        onClick={() => handleOpenDetails(pub.id)}
+                      >
+                        <Eye size={14} /> Full Details & Citation
+                      </button>
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -791,7 +991,7 @@ export const PublicationManagement: React.FC = () => {
             <div className="pub-form-header">
               <h2>{editingPublication ? 'Edit Publication Record' : 'Catalog New Research Publication'}</h2>
               <p>
-                Provide detailed bibliographic information about your work. At least one identifying source (DOI, Venue, or URL) is required.
+                Provide detailed bibliographic information about your work. You can auto-fill details by entering a DOI or fill the fields manually.
               </p>
             </div>
 
@@ -803,6 +1003,51 @@ export const PublicationManagement: React.FC = () => {
             )}
 
             <form onSubmit={handleSubmitPublication} id="form-manage-publication">
+              {/* DOI First with Auto-fill helper */}
+              <div className="form-group">
+                <label htmlFor="pub-doi">
+                  Digital Object Identifier (DOI)
+                </label>
+                <div className="doi-input-container">
+                  <div className="doi-input-row">
+                    <input
+                      id="pub-doi"
+                      type="text"
+                      placeholder="e.g. 10.1109/TSE.2024.1234567 or https://doi.org/10.1145/3377811.3380387"
+                      value={form.doi}
+                      onChange={e => setForm(f => ({ ...f, doi: e.target.value }))}
+                    />
+                    <button
+                      type="button"
+                      className="btn-autofill-doi"
+                      disabled={fetchingDoiMetadata || !form.doi.trim()}
+                      onClick={handleFetchDoiMetadata}
+                      title="Fetch metadata automatically from CrossRef"
+                    >
+                      {fetchingDoiMetadata ? (
+                        <>
+                          <RefreshCw size={14} className="spin-icon" /> Fetching…
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={14} /> Auto-fill from DOI
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {previewCleanDoi && previewCleanDoi.startsWith('10.') && previewCleanDoi.includes('/') && (
+                    <div className="doi-preview-row">
+                      <span>Live Resolver:</span>
+                      <a href={`https://doi.org/${previewCleanDoi}`} target="_blank" rel="noopener noreferrer">
+                        https://doi.org/{previewCleanDoi} <ExternalLink size={11} />
+                      </a>
+                    </div>
+                  )}
+                  <span className="field-hint">Entering a DOI allows automatic bibliographic extraction via CrossRef.</span>
+                </div>
+              </div>
+
               {/* Title */}
               <div className="form-group">
                 <label htmlFor="pub-title">
@@ -862,6 +1107,24 @@ export const PublicationManagement: React.FC = () => {
                     max={new Date().getFullYear() + 1}
                     required
                   />
+                  <div className="year-presets-row">
+                    <span className="preset-chip-label">Quick:</span>
+                    {[
+                      new Date().getFullYear(),
+                      new Date().getFullYear() - 1,
+                      new Date().getFullYear() - 2,
+                      new Date().getFullYear() - 3
+                    ].map(y => (
+                      <button
+                        key={y}
+                        type="button"
+                        className={`year-preset-btn ${form.publicationYear === y ? 'active' : ''}`}
+                        onClick={() => setForm(f => ({ ...f, publicationYear: y }))}
+                      >
+                        {y}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -877,35 +1140,32 @@ export const PublicationManagement: React.FC = () => {
                   value={form.journalOrConference}
                   onChange={e => setForm(f => ({ ...f, journalOrConference: e.target.value }))}
                 />
+                <div className="preset-chips-row">
+                  <span className="preset-chip-label">Suggested Venues:</span>
+                  {POPULAR_VENUES.map(venue => (
+                    <button
+                      key={venue}
+                      type="button"
+                      className="preset-chip"
+                      onClick={() => setForm(f => ({ ...f, journalOrConference: venue }))}
+                    >
+                      {venue}
+                    </button>
+                  ))}
+                </div>
               </div>
 
-              {/* Grid 2: DOI & Visibility */}
-              <div className="form-grid-2">
-                <div className="form-group">
-                  <label htmlFor="pub-doi">
-                    Digital Object Identifier (DOI)
-                  </label>
-                  <input
-                    id="pub-doi"
-                    type="text"
-                    placeholder="e.g. 10.1109/TSE.2024.1234567"
-                    value={form.doi}
-                    onChange={e => setForm(f => ({ ...f, doi: e.target.value }))}
-                  />
-                  <span className="field-hint">Standard DOIs begin with '10.'.</span>
-                </div>
-
-                <div className="form-group">
-                  <label htmlFor="pub-visibility">Portfolio Visibility</label>
-                  <select
-                    id="pub-visibility"
-                    value={form.visibility}
-                    onChange={e => setForm(f => ({ ...f, visibility: e.target.value }))}
-                  >
-                    <option value="Public">Public (Visible across ResCollab)</option>
-                    <option value="Private">Private (Visible only to you)</option>
-                  </select>
-                </div>
+              {/* Visibility */}
+              <div className="form-group">
+                <label htmlFor="pub-visibility">Portfolio Visibility</label>
+                <select
+                  id="pub-visibility"
+                  value={form.visibility}
+                  onChange={e => setForm(f => ({ ...f, visibility: e.target.value }))}
+                >
+                  <option value="Public">Public (Visible across ResCollab)</option>
+                  <option value="Private">Private (Visible only to you)</option>
+                </select>
               </div>
 
               {/* Source Link */}
@@ -915,11 +1175,12 @@ export const PublicationManagement: React.FC = () => {
                 </label>
                 <input
                   id="pub-sourcelink"
-                  type="url"
+                  type="text"
                   placeholder="e.g. https://arxiv.org/abs/2401.12345 or IEEE Xplore URL"
                   value={form.sourceLink}
                   onChange={e => setForm(f => ({ ...f, sourceLink: e.target.value }))}
                 />
+                <span className="field-hint">Supports arXiv, IEEE, ACM, Nature, PubMed, Springer, GitHub, or direct paper links.</span>
               </div>
 
               {/* Abstract */}

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { 
   X, BookOpen, ExternalLink, Calendar, Users, 
   Copy, Check, FileText, Globe, Lock, Shield, 
-  Edit3, Trash2, Link as LinkIcon, Quote 
+  Edit3, Trash2, Link as LinkIcon, Quote, Download, Search
 } from 'lucide-react';
 
 export interface PublicationDetail {
@@ -31,6 +31,24 @@ interface PublicationDetailsModalProps {
   onToggleVisibility?: (id: number, currentVis: string) => void;
 }
 
+export type CitationStyle = 'apa' | 'ieee' | 'mla' | 'bibtex';
+
+export const detectLinkProvider = (url?: string | null) => {
+  if (!url) return null;
+  const u = url.toLowerCase();
+  if (u.includes('arxiv.org')) return { name: 'arXiv', badgeClass: 'pub-provider-arxiv' };
+  if (u.includes('ieeexplore.ieee.org')) return { name: 'IEEE Xplore', badgeClass: 'pub-provider-ieee' };
+  if (u.includes('dl.acm.org')) return { name: 'ACM Digital Library', badgeClass: 'pub-provider-acm' };
+  if (u.includes('ncbi.nlm.nih.gov') || u.includes('pubmed')) return { name: 'PubMed', badgeClass: 'pub-provider-pubmed' };
+  if (u.includes('nature.com')) return { name: 'Nature', badgeClass: 'pub-provider-nature' };
+  if (u.includes('springer.com') || u.includes('link.springer.com')) return { name: 'Springer', badgeClass: 'pub-provider-springer' };
+  if (u.includes('sciencedirect.com') || u.includes('elsevier.com')) return { name: 'ScienceDirect', badgeClass: 'pub-provider-elsevier' };
+  if (u.includes('researchgate.net')) return { name: 'ResearchGate', badgeClass: 'pub-provider-rg' };
+  if (u.includes('github.com')) return { name: 'GitHub Code/Data', badgeClass: 'pub-provider-github' };
+  if (u.endsWith('.pdf')) return { name: 'Direct PDF', badgeClass: 'pub-provider-pdf' };
+  return { name: 'Original Source', badgeClass: 'pub-provider-generic' };
+};
+
 export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = ({
   publication,
   isOwner,
@@ -39,41 +57,89 @@ export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = (
   onDelete,
   onToggleVisibility,
 }) => {
-  const [copiedType, setCopiedType] = useState<'doi' | 'apa' | 'bibtex' | null>(null);
+  const [selectedCitationStyle, setSelectedCitationStyle] = useState<CitationStyle>('apa');
+  const [copiedType, setCopiedType] = useState<string | null>(null);
+
+  const cleanDoi = publication.doi?.replace(/^https?:\/\/doi\.org\//i, '').replace(/^doi:/i, '').trim();
 
   const getDoiUrl = (doi: string) => {
     return doi.startsWith('http') ? doi : `https://doi.org/${doi}`;
   };
 
-  // Generate APA Citation
+  // Generate APA Citation (7th Edition)
   const generateApaCitation = () => {
     const authors = publication.authors;
     const year = publication.publicationYear;
     const title = publication.title;
-    const venue = publication.journalOrConference ? `*${publication.journalOrConference}*` : '';
-    const doi = publication.doi ? ` https://doi.org/${publication.doi}` : '';
-    return `${authors} (${year}). ${title}. ${venue}.${doi}`.trim();
+    const venue = publication.journalOrConference ? `${publication.journalOrConference}.` : '';
+    const doi = cleanDoi ? ` https://doi.org/${cleanDoi}` : '';
+    return `${authors} (${year}). ${title}. ${venue}${doi}`.trim();
+  };
+
+  // Generate IEEE Citation
+  const generateIeeeCitation = () => {
+    const authors = publication.authors;
+    const title = publication.title;
+    const venue = publication.journalOrConference ? `"${publication.journalOrConference}," ` : '';
+    const year = publication.publicationYear;
+    const doi = cleanDoi ? `, doi: ${cleanDoi}` : '';
+    return `${authors}, "${title}," ${venue}${year}${doi}.`.trim();
+  };
+
+  // Generate MLA Citation (9th Edition)
+  const generateMlaCitation = () => {
+    const authors = publication.authors;
+    const title = publication.title;
+    const venue = publication.journalOrConference ? `*${publication.journalOrConference}*, ` : '';
+    const year = publication.publicationYear;
+    const doi = cleanDoi ? `, https://doi.org/${cleanDoi}` : '';
+    return `${authors}. "${title}." ${venue}${year}${doi}.`.trim();
   };
 
   // Generate BibTeX
   const generateBibtex = () => {
-    const firstAuthor = publication.authors.split(',')[0].trim().replace(/\s+/g, '');
-    const key = `${firstAuthor}${publication.publicationYear}`;
-    const type = publication.publicationType.toLowerCase() === 'conference' ? 'inproceedings' : 'article';
+    const firstAuthor = publication.authors.split(',')[0].trim().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    const key = `${firstAuthor || 'Author'}${publication.publicationYear}`;
+    const isConference = publication.publicationType.toLowerCase() === 'conference';
+    const type = isConference ? 'inproceedings' : 'article';
+    const venueField = isConference ? 'booktitle' : 'journal';
+
     return `@${type}{${key},
-  title={${publication.title}},
-  author={${publication.authors}},
-  year={${publication.publicationYear}},
-  ${publication.journalOrConference ? `journal={${publication.journalOrConference}},` : ''}
-  ${publication.doi ? `doi={${publication.doi}},` : ''}
-  ${publication.sourceLink ? `url={${publication.sourceLink}}` : ''}
+  title = {${publication.title}},
+  author = {${publication.authors}},
+  year = {${publication.publicationYear}},${publication.journalOrConference ? `\n  ${venueField} = {${publication.journalOrConference}},` : ''}${cleanDoi ? `\n  doi = {${cleanDoi}},` : ''}${publication.sourceLink ? `\n  url = {${publication.sourceLink}},` : ''}
+  publisher = {ResCollab Academic Repository}
 }`;
   };
 
-  const copyToClipboard = (text: string, type: 'doi' | 'apa' | 'bibtex') => {
+  const getCurrentCitationText = () => {
+    switch (selectedCitationStyle) {
+      case 'apa': return generateApaCitation();
+      case 'ieee': return generateIeeeCitation();
+      case 'mla': return generateMlaCitation();
+      case 'bibtex': return generateBibtex();
+    }
+  };
+
+  const copyToClipboard = (text: string, type: string) => {
     navigator.clipboard.writeText(text);
     setCopiedType(type);
     setTimeout(() => setCopiedType(null), 2500);
+  };
+
+  const downloadBibtexFile = () => {
+    const bibtexContent = generateBibtex();
+    const firstAuthor = publication.authors.split(',')[0].trim().replace(/\s+/g, '').replace(/[^a-zA-Z0-9]/g, '');
+    const filename = `${firstAuthor || 'citation'}_${publication.publicationYear}.bib`;
+    const blob = new Blob([bibtexContent], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const getBadgeColorClass = (type: string) => {
@@ -86,6 +152,14 @@ export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = (
       default: return 'pub-type-other';
     }
   };
+
+  const linkProvider = detectLinkProvider(publication.sourceLink);
+
+  const googleScholarUrl = `https://scholar.google.com/scholar?q=${encodeURIComponent(publication.title)}`;
+  const semanticScholarUrl = `https://www.semanticscholar.org/search?q=${encodeURIComponent(publication.title)}`;
+  const crossRefUrl = cleanDoi 
+    ? `https://doi.org/${cleanDoi}` 
+    : `https://search.crossref.org/?q=${encodeURIComponent(publication.title)}`;
 
   return (
     <div className="pub-modal-backdrop" onClick={onClose} id="pub-details-modal-backdrop">
@@ -133,30 +207,32 @@ export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = (
           <div className="pub-modal-venue">
             <FileText size={16} className="pub-meta-icon" />
             <div className="venue-text">
-              <strong>Venue:</strong> {publication.journalOrConference}
+              <strong>{publication.publicationType === 'Conference' ? 'Proceedings / Conference:' : 'Journal / Venue:'}</strong>{' '}
+              {publication.journalOrConference}
             </div>
           </div>
         )}
 
-        {/* Links: DOI & Source Link */}
+        {/* Links Section: DOI & Source Link */}
         <div className="pub-modal-links-row">
-          {publication.doi && (
+          {cleanDoi && (
             <div className="pub-link-item doi-item">
               <span className="link-label">DOI:</span>
               <a 
-                href={getDoiUrl(publication.doi)} 
+                href={getDoiUrl(cleanDoi)} 
                 target="_blank" 
-                rel="noreferrer" 
+                rel="noopener noreferrer" 
                 className="doi-link"
                 id={`link-doi-${publication.id}`}
+                title="Open DOI Resolver"
               >
-                {publication.doi} <ExternalLink size={13} />
+                {cleanDoi} <ExternalLink size={13} />
               </a>
               <button 
                 type="button" 
                 className="icon-copy-btn" 
-                title="Copy DOI"
-                onClick={() => copyToClipboard(publication.doi!, 'doi')}
+                title="Copy DOI identifier"
+                onClick={() => copyToClipboard(cleanDoi, 'doi')}
               >
                 {copiedType === 'doi' ? <Check size={14} className="copied-icon" /> : <Copy size={14} />}
               </button>
@@ -165,24 +241,70 @@ export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = (
 
           {publication.sourceLink && (
             <div className="pub-link-item source-item">
-              <span className="link-label">Full Text / Source:</span>
+              <span className="link-label">Source Link:</span>
               <a 
-                href={publication.sourceLink} 
+                href={publication.sourceLink.startsWith('http') ? publication.sourceLink : `https://${publication.sourceLink}`} 
                 target="_blank" 
-                rel="noreferrer" 
+                rel="noopener noreferrer" 
                 className="source-link-btn"
                 id={`link-source-${publication.id}`}
               >
-                <LinkIcon size={14} /> Open Paper Source <ExternalLink size={13} />
+                <LinkIcon size={14} />
+                <span>{linkProvider ? `${linkProvider.name}` : 'Paper URL'}</span>
+                <ExternalLink size={13} />
               </a>
+              <button 
+                type="button" 
+                className="icon-copy-btn" 
+                title="Copy Source URL"
+                onClick={() => copyToClipboard(publication.sourceLink!, 'source')}
+              >
+                {copiedType === 'source' ? <Check size={14} className="copied-icon" /> : <Copy size={14} />}
+              </button>
             </div>
           )}
+        </div>
+
+        {/* Scholarly Discovery / External Resolution */}
+        <div className="pub-scholarly-lookup-bar">
+          <span className="scholarly-label">
+            <Search size={13} /> External Scholarly Lookup:
+          </span>
+          <div className="scholarly-links">
+            <a 
+              href={googleScholarUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="scholarly-chip"
+              title="Search this paper on Google Scholar"
+            >
+              Google Scholar <ExternalLink size={11} />
+            </a>
+            <a 
+              href={semanticScholarUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="scholarly-chip"
+              title="Search this paper on Semantic Scholar"
+            >
+              Semantic Scholar <ExternalLink size={11} />
+            </a>
+            <a 
+              href={crossRefUrl} 
+              target="_blank" 
+              rel="noopener noreferrer" 
+              className="scholarly-chip"
+              title="Resolve metadata on CrossRef"
+            >
+              CrossRef <ExternalLink size={11} />
+            </a>
+          </div>
         </div>
 
         {/* Abstract Section */}
         <div className="pub-modal-abstract-section">
           <h3>
-            <FileText size={16} /> Abstract
+            <FileText size={16} /> Abstract & Synopsis
           </h3>
           <div className="pub-abstract-body">
             {publication.abstract ? (
@@ -197,43 +319,56 @@ export const PublicationDetailsModal: React.FC<PublicationDetailsModalProps> = (
         <div className="pub-modal-citation-section">
           <div className="citation-header">
             <h3>
-              <Quote size={16} /> Citation Generator
+              <Quote size={16} /> Academic Citations
             </h3>
+
+            {/* Citation Format Switcher */}
+            <div className="citation-format-tabs" role="tablist">
+              {(['apa', 'ieee', 'mla', 'bibtex'] as CitationStyle[]).map(style => (
+                <button
+                  key={style}
+                  type="button"
+                  className={`citation-tab-pill ${selectedCitationStyle === style ? 'active' : ''}`}
+                  onClick={() => setSelectedCitationStyle(style)}
+                >
+                  {style.toUpperCase()}
+                </button>
+              ))}
+            </div>
+
             <div className="citation-actions">
               <button 
                 type="button" 
                 className="citation-copy-btn"
-                onClick={() => copyToClipboard(generateApaCitation(), 'apa')}
+                onClick={() => copyToClipboard(getCurrentCitationText(), selectedCitationStyle)}
+                title={`Copy ${selectedCitationStyle.toUpperCase()} citation to clipboard`}
               >
-                {copiedType === 'apa' ? (
+                {copiedType === selectedCitationStyle ? (
                   <>
-                    <Check size={14} /> Copied APA
+                    <Check size={14} /> Copied!
                   </>
                 ) : (
                   <>
-                    <Copy size={14} /> Copy APA
+                    <Copy size={14} /> Copy Citation
                   </>
                 )}
               </button>
-              <button 
-                type="button" 
-                className="citation-copy-btn secondary"
-                onClick={() => copyToClipboard(generateBibtex(), 'bibtex')}
-              >
-                {copiedType === 'bibtex' ? (
-                  <>
-                    <Check size={14} /> Copied BibTeX
-                  </>
-                ) : (
-                  <>
-                    <Copy size={14} /> Copy BibTeX
-                  </>
-                )}
-              </button>
+
+              {selectedCitationStyle === 'bibtex' && (
+                <button 
+                  type="button" 
+                  className="citation-copy-btn secondary"
+                  onClick={downloadBibtexFile}
+                  title="Download .bib file"
+                >
+                  <Download size={14} /> Download .bib
+                </button>
+              )}
             </div>
           </div>
+
           <div className="citation-preview-box">
-            <code>{generateApaCitation()}</code>
+            <code>{getCurrentCitationText()}</code>
           </div>
         </div>
 

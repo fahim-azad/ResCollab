@@ -33,12 +33,14 @@ namespace ResCollab.Api.Controllers
         // READ ENDPOINTS
         // =============================================
 
-        // GET /api/publication?ownerId=X&publicationType=Y&year=Z
+        // GET /api/publication?ownerId=X&publicationType=Y&year=Z&doi=D&journalOrConference=J&search=S
         [HttpGet]
         public async Task<IActionResult> GetPublications(
             [FromQuery] int? ownerId,
             [FromQuery] string? publicationType,
             [FromQuery] int? year,
+            [FromQuery] string? doi,
+            [FromQuery] string? journalOrConference,
             [FromQuery] string? search)
         {
             var query = _context.Publications
@@ -54,10 +56,20 @@ namespace ResCollab.Api.Controllers
             if (year.HasValue)
                 query = query.Where(p => p.PublicationYear == year.Value);
 
+            if (!string.IsNullOrWhiteSpace(doi))
+            {
+                var normDoi = NormalizeDoi(doi);
+                query = query.Where(p => p.DOI != null && (p.DOI == normDoi || p.DOI.Contains(doi)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(journalOrConference))
+                query = query.Where(p => p.JournalOrConference != null && p.JournalOrConference.Contains(journalOrConference));
+
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(p =>
                     p.Title.Contains(search) ||
                     p.Authors.Contains(search) ||
+                    (p.DOI != null && p.DOI.Contains(search)) ||
                     (p.JournalOrConference != null && p.JournalOrConference.Contains(search)));
 
             var results = await query
@@ -145,7 +157,37 @@ namespace ResCollab.Api.Controllers
             public string Visibility { get; set; } = "Public";
         }
 
-        private string? ValidatePublicationRequest(PublicationRequest req)
+        public static string? NormalizeDoi(string? doi)
+        {
+            if (string.IsNullOrWhiteSpace(doi)) return null;
+            var trimmed = doi.Trim();
+            if (trimmed.StartsWith("https://doi.org/", StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed.Substring("https://doi.org/".Length);
+            else if (trimmed.StartsWith("http://doi.org/", StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed.Substring("http://doi.org/".Length);
+            else if (trimmed.StartsWith("https://dx.doi.org/", StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed.Substring("https://dx.doi.org/".Length);
+            else if (trimmed.StartsWith("http://dx.doi.org/", StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed.Substring("http://dx.doi.org/".Length);
+            else if (trimmed.StartsWith("doi:", StringComparison.OrdinalIgnoreCase))
+                trimmed = trimmed.Substring("doi:".Length);
+
+            return trimmed.Trim().Trim('/');
+        }
+
+        public static string? NormalizeSourceLink(string? link)
+        {
+            if (string.IsNullOrWhiteSpace(link)) return null;
+            var trimmed = link.Trim();
+            if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
+                !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
+            {
+                trimmed = "https://" + trimmed;
+            }
+            return trimmed;
+        }
+
+        public static string? ValidatePublicationRequest(PublicationRequest req)
         {
             if (string.IsNullOrWhiteSpace(req.Title))
                 return "Title is required.";
@@ -165,15 +207,31 @@ namespace ResCollab.Api.Controllers
             if (!validVisibility.Contains(req.Visibility))
                 return "Visibility must be 'Public' or 'Private'.";
 
+            var normDoi = NormalizeDoi(req.DOI);
+            var normLink = NormalizeSourceLink(req.SourceLink);
+
             // At least one identifying field must be provided
-            if (string.IsNullOrWhiteSpace(req.DOI) &&
+            if (string.IsNullOrWhiteSpace(normDoi) &&
                 string.IsNullOrWhiteSpace(req.JournalOrConference) &&
-                string.IsNullOrWhiteSpace(req.SourceLink))
+                string.IsNullOrWhiteSpace(normLink))
                 return "At least one of DOI, Journal/Conference, or Source Link must be provided.";
 
-            // Basic DOI format check: should start with "10."
-            if (!string.IsNullOrWhiteSpace(req.DOI) && !req.DOI.StartsWith("10."))
-                return "DOI format appears invalid. DOIs should start with '10.'.";
+            // Basic DOI format check: should start with "10." and contain a registrant delimiter '/'
+            if (!string.IsNullOrWhiteSpace(normDoi))
+            {
+                if (!normDoi.StartsWith("10.") || !normDoi.Contains('/'))
+                    return "DOI format appears invalid. Standard DOIs begin with '10.' followed by a registrant code and suffix (e.g. 10.1109/TSE.2024.1234567).";
+            }
+
+            // Source link validation: valid URI
+            if (!string.IsNullOrWhiteSpace(normLink))
+            {
+                if (!Uri.TryCreate(normLink, UriKind.Absolute, out var uriResult) ||
+                    (uriResult.Scheme != Uri.UriSchemeHttp && uriResult.Scheme != Uri.UriSchemeHttps))
+                {
+                    return "Source link must be a valid HTTP or HTTPS URL.";
+                }
+            }
 
             return null; // valid
         }
@@ -192,11 +250,11 @@ namespace ResCollab.Api.Controllers
                 OwnerId = userId,
                 Title = req.Title.Trim(),
                 Authors = req.Authors.Trim(),
-                DOI = req.DOI?.Trim(),
+                DOI = NormalizeDoi(req.DOI),
                 JournalOrConference = req.JournalOrConference?.Trim(),
                 PublicationYear = req.PublicationYear,
                 Abstract = req.Abstract?.Trim(),
-                SourceLink = req.SourceLink?.Trim(),
+                SourceLink = NormalizeSourceLink(req.SourceLink),
                 PublicationType = req.PublicationType,
                 Visibility = req.Visibility
             };
@@ -221,11 +279,11 @@ namespace ResCollab.Api.Controllers
 
             pub.Title = req.Title.Trim();
             pub.Authors = req.Authors.Trim();
-            pub.DOI = req.DOI?.Trim();
+            pub.DOI = NormalizeDoi(req.DOI);
             pub.JournalOrConference = req.JournalOrConference?.Trim();
             pub.PublicationYear = req.PublicationYear;
             pub.Abstract = req.Abstract?.Trim();
-            pub.SourceLink = req.SourceLink?.Trim();
+            pub.SourceLink = NormalizeSourceLink(req.SourceLink);
             pub.PublicationType = req.PublicationType;
             pub.Visibility = req.Visibility;
             pub.UpdatedAt = DateTime.UtcNow;
