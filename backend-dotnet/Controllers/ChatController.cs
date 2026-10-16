@@ -8,6 +8,9 @@ using Microsoft.EntityFrameworkCore;
 using ResCollab.Api.Data;
 using ResCollab.Api.Models;
 
+using Microsoft.AspNetCore.SignalR;
+using ResCollab.Api.Hubs;
+
 namespace ResCollab.Api.Controllers
 {
     [Route("api/[controller]")]
@@ -16,10 +19,12 @@ namespace ResCollab.Api.Controllers
     public class ChatController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHubContext<ChatHub> _hubContext;
 
-        public ChatController(ApplicationDbContext context)
+        public ChatController(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
         private int GetUserId()
@@ -448,14 +453,42 @@ namespace ResCollab.Api.Controllers
             if (conv != null) conv.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return StatusCode(201, new {
+
+            var sender = await _context.Users.FindAsync(userId);
+            var senderName = sender?.FullName ?? "User";
+
+            var messageDto = new {
                 message.Id,
                 message.ConversationId,
                 message.SenderId,
+                SenderName = senderName,
                 message.Content,
                 message.MessageType,
-                message.CreatedAt
-            });
+                message.CreatedAt,
+                message.EditedAt,
+                message.IsDeleted
+            };
+
+            // Broadcast real-time message to conversation group
+            await _hubContext.Clients.Group($"conversation_{id}").SendAsync("ReceiveMessage", messageDto);
+
+            // Notify participants' personal notification groups
+            var convWithParticipants = await _context.Conversations
+                .Include(c => c.Participants)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (convWithParticipants != null)
+            {
+                foreach (var p in convWithParticipants.Participants)
+                {
+                    await _hubContext.Clients.Group($"user_{p.UserId}").SendAsync("ConversationUpdated", new {
+                        ConversationId = id,
+                        LastMessage = messageDto
+                    });
+                }
+            }
+
+            return StatusCode(201, messageDto);
         }
 
         // PUT /api/chat/conversations/{conversationId}/messages/{messageId}
@@ -487,6 +520,15 @@ namespace ResCollab.Api.Controllers
             message.Content = newContent;
             message.EditedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // Broadcast real-time message edit to conversation group
+            await _hubContext.Clients.Group($"conversation_{conversationId}").SendAsync("MessageEdited", new {
+                message.Id,
+                message.ConversationId,
+                message.Content,
+                message.EditedAt
+            });
+
             return Ok(message);
         }
 
@@ -506,6 +548,13 @@ namespace ResCollab.Api.Controllers
             message.Content = "[Message deleted]";
             message.EditedAt = DateTime.UtcNow;
             await _context.SaveChangesAsync();
+
+            // Broadcast real-time message deletion to conversation group
+            await _hubContext.Clients.Group($"conversation_{conversationId}").SendAsync("MessageDeleted", new {
+                MessageId = messageId,
+                ConversationId = conversationId
+            });
+
             return Ok(new { message = "Message deleted." });
         }
 

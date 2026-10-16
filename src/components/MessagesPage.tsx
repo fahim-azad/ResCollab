@@ -5,6 +5,7 @@ import {
   Code, Smile, Shield, CornerDownLeft, Filter 
 } from 'lucide-react';
 import './MessagesPage.css';
+import chatSignalR, { type SignalRConnectionStatus, type TypingNotification } from '../services/chatSignalR';
 
 const API = 'http://localhost:5000/api';
 
@@ -90,6 +91,13 @@ const MessagesPage: React.FC = () => {
   const [activeConvId, setActiveConvId] = useState<number | null>(null);
   const [loadingConversations, setLoadingConversations] = useState<boolean>(true);
   const [totalUnread, setTotalUnread] = useState<number>(0);
+
+  // SignalR Real-Time State
+  const [signalRStatus, setSignalRStatus] = useState<SignalRConnectionStatus>('Disconnected');
+  const [peerTyping, setPeerTyping] = useState<TypingNotification | null>(null);
+  const activeConvIdRef = useRef<number | null>(null);
+  const typingTimeoutRef = useRef<number | null>(null);
+  const userTypingDebounceRef = useRef<number | null>(null);
 
   // Filter & Search in sidebar
   const [sidebarFilter, setSidebarFilter] = useState<'all' | 'direct' | 'team' | 'archived'>('all');
@@ -260,6 +268,136 @@ const MessagesPage: React.FC = () => {
     fetchTotalUnread();
   }, [token]);
 
+  // SignalR connection setup and real-time event listeners
+  useEffect(() => {
+    if (!token) return;
+
+    // Listen to connection status changes
+    const unsubStatus = chatSignalR.onStatusChange(status => {
+      setSignalRStatus(status);
+    });
+
+    // Start Hub Connection
+    chatSignalR.startConnection();
+
+    // Event: Receive real-time message
+    const unsubMsg = chatSignalR.onReceiveMessage((newMsg: ChatMessage) => {
+      if (newMsg.conversationId === activeConvIdRef.current) {
+        setMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+        setTimeout(() => scrollToBottom('smooth'), 40);
+      }
+
+      // Update conversation in list
+      setConversations(prev => {
+        const conv = prev.find(c => c.id === newMsg.conversationId);
+        if (!conv) {
+          fetchConversations(true);
+          return prev;
+        }
+        const isCurrentActive = newMsg.conversationId === activeConvIdRef.current;
+        const isSelf = newMsg.senderId === currentUserId;
+        const updatedConv: Conversation = {
+          ...conv,
+          updatedAt: newMsg.createdAt,
+          unreadCount: isCurrentActive || isSelf ? 0 : conv.unreadCount + 1,
+          lastMessage: newMsg
+        };
+        return [updatedConv, ...prev.filter(c => c.id !== newMsg.conversationId)];
+      });
+      fetchTotalUnread();
+    });
+
+    // Event: Message edited in real time
+    const unsubEdit = chatSignalR.onMessageEdited((data) => {
+      if (data.conversationId === activeConvIdRef.current) {
+        setMessages(prev => prev.map(m => m.id === data.id ? { ...m, content: data.content, editedAt: data.editedAt } : m));
+      }
+      setConversations(prev => prev.map(c => {
+        if (c.id === data.conversationId && c.lastMessage?.id === data.id) {
+          return {
+            ...c,
+            lastMessage: { ...c.lastMessage, content: data.content }
+          };
+        }
+        return c;
+      }));
+    });
+
+    // Event: Message deleted in real time
+    const unsubDel = chatSignalR.onMessageDeleted((data) => {
+      if (data.conversationId === activeConvIdRef.current) {
+        setMessages(prev => prev.map(m => m.id === data.messageId ? { ...m, isDeleted: true, content: '[Message deleted]' } : m));
+      }
+      setConversations(prev => prev.map(c => {
+        if (c.id === data.conversationId && c.lastMessage?.id === data.messageId) {
+          return {
+            ...c,
+            lastMessage: { ...c.lastMessage, isDeleted: true, content: '[Message deleted]' }
+          };
+        }
+        return c;
+      }));
+    });
+
+    // Event: Peer user typing in real time
+    const unsubTyping = chatSignalR.onUserTyping((data: TypingNotification) => {
+      if (data.conversationId === activeConvIdRef.current && data.userId !== currentUserId) {
+        if (data.isTyping) {
+          setPeerTyping(data);
+          if (typingTimeoutRef.current) window.clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = window.setTimeout(() => {
+            setPeerTyping(null);
+          }, 3500);
+        } else {
+          setPeerTyping(null);
+        }
+      }
+    });
+
+    // Event: Conversation updated
+    const unsubConvUp = chatSignalR.onConversationUpdated((data) => {
+      setConversations(prev => {
+        const conv = prev.find(c => c.id === data.conversationId);
+        if (!conv) {
+          fetchConversations(true);
+          return prev;
+        }
+        return [{ ...conv, lastMessage: data.lastMessage, updatedAt: data.lastMessage?.createdAt || conv.updatedAt }, ...prev.filter(c => c.id !== data.conversationId)];
+      });
+    });
+
+    return () => {
+      unsubStatus();
+      unsubMsg();
+      unsubEdit();
+      unsubDel();
+      unsubTyping();
+      unsubConvUp();
+      chatSignalR.stopConnection();
+    };
+  }, [token, currentUserId]);
+
+  // Keep activeConvIdRef synchronized and manage SignalR room join/leave
+  useEffect(() => {
+    activeConvIdRef.current = activeConvId;
+    setPeerTyping(null);
+
+    if (activeConvId) {
+      chatSignalR.joinConversation(activeConvId);
+      fetchMessages(activeConvId);
+      markAsRead(activeConvId);
+    }
+
+    return () => {
+      if (activeConvId) {
+        chatSignalR.leaveConversation(activeConvId);
+      }
+    };
+  }, [activeConvId]);
+
   // Periodic polling for conversations list and total unread
   useEffect(() => {
     const interval = setInterval(() => {
@@ -269,18 +407,16 @@ const MessagesPage: React.FC = () => {
     return () => clearInterval(interval);
   }, [token]);
 
-  // Periodic polling for active conversation messages
+  // Safety periodic polling for active conversation messages (heartbeat when SignalR is connected)
   useEffect(() => {
     if (!activeConvId) return;
-    fetchMessages(activeConvId);
-    markAsRead(activeConvId);
-
+    const pollInterval = signalRStatus === 'Connected' ? 15000 : 3500;
     const interval = setInterval(() => {
       fetchMessages(activeConvId, true);
-    }, 3500);
+    }, pollInterval);
 
     return () => clearInterval(interval);
-  }, [activeConvId]);
+  }, [activeConvId, signalRStatus]);
 
   // Load Contacts when opening Direct or Team modals
   const fetchContacts = async (query = '') => {
@@ -318,7 +454,7 @@ const MessagesPage: React.FC = () => {
     }
   };
 
-  // Handle Send Message
+  // Handle Send Message (over SignalR first with HTTP fallback)
   const handleSendMessage = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!activeConvId || !composerText.trim() || sendingMessage || !token) return;
@@ -327,31 +463,66 @@ const MessagesPage: React.FC = () => {
     const textToSend = composerText.trim();
     const typeToSend = composerType;
 
-    try {
-      const res = await fetch(`${API}/chat/conversations/${activeConvId}/messages`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          content: textToSend,
-          messageType: typeToSend
-        })
-      });
+    // Clear typing state
+    chatSignalR.sendTyping(activeConvId, false);
 
-      if (res.ok) {
+    try {
+      let sentSuccessfully = false;
+
+      // Try sending via SignalR if connected
+      if (signalRStatus === 'Connected') {
+        sentSuccessfully = await chatSignalR.sendMessage(activeConvId, textToSend, typeToSend);
+      }
+
+      // If SignalR failed or not connected, use HTTP POST fallback
+      if (!sentSuccessfully) {
+        const res = await fetch(`${API}/chat/conversations/${activeConvId}/messages`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${token}`
+          },
+          body: JSON.stringify({
+            content: textToSend,
+            messageType: typeToSend
+          })
+        });
+        if (res.ok) {
+          sentSuccessfully = true;
+          await fetchMessages(activeConvId, true);
+          fetchConversations(true);
+        }
+      }
+
+      if (sentSuccessfully) {
         setComposerText('');
         setComposerType('Text');
         setShowEmojiPicker(false);
-        await fetchMessages(activeConvId, true);
-        fetchConversations(true);
         setTimeout(() => scrollToBottom('smooth'), 50);
       }
     } catch (err) {
       console.error('Error sending message:', err);
     } finally {
       setSendingMessage(false);
+    }
+  };
+
+  // Handle composer text change with typing indicator broadcast
+  const handleComposerChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    setComposerText(val);
+
+    if (activeConvId && signalRStatus === 'Connected') {
+      chatSignalR.sendTyping(activeConvId, true);
+
+      if (userTypingDebounceRef.current) {
+        window.clearTimeout(userTypingDebounceRef.current);
+      }
+      userTypingDebounceRef.current = window.setTimeout(() => {
+        if (activeConvIdRef.current) {
+          chatSignalR.sendTyping(activeConvIdRef.current, false);
+        }
+      }, 2500);
     }
   };
 
@@ -600,6 +771,16 @@ const MessagesPage: React.FC = () => {
                   {totalUnread}
                 </span>
               )}
+              <div
+                id="badge-signalr-status"
+                className={`chat-signalr-status-badge ${signalRStatus.toLowerCase()}`}
+                title={`SignalR Real-Time status: ${signalRStatus}`}
+              >
+                <span className="signalr-dot" />
+                <span id="text-signalr-status">
+                  {signalRStatus === 'Connected' ? 'Live' : signalRStatus}
+                </span>
+              </div>
             </div>
 
             <div className="chat-header-actions">
@@ -1074,6 +1255,18 @@ const MessagesPage: React.FC = () => {
               <div ref={messagesEndRef} />
             </div>
 
+            {/* Live Real-time Typing Indicator */}
+            {peerTyping && (
+              <div id="indicator-user-typing" className="chat-typing-indicator-bar">
+                <div className="typing-dots">
+                  <span />
+                  <span />
+                  <span />
+                </div>
+                <span><strong>{peerTyping.userName}</strong> is typing...</span>
+              </div>
+            )}
+
             {/* Bottom: Message Composer */}
             <div id="chat-composer" className="chat-composer-container">
               {activeConversation.status === 'Archived' ? (
@@ -1153,7 +1346,7 @@ const MessagesPage: React.FC = () => {
                       }
                       rows={composerType === 'Code' ? 3 : 1}
                       value={composerText}
-                      onChange={e => setComposerText(e.target.value)}
+                      onChange={handleComposerChange}
                       onKeyDown={e => {
                         if (e.key === 'Enter' && !e.shiftKey) {
                           e.preventDefault();
