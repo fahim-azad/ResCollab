@@ -4,9 +4,14 @@ import {
   ExternalLink, Clock, FileText, CheckCircle2, AlertCircle,
   Edit3, Trash2, Eye, Shield, RefreshCw, Sparkles, Award,
   Check, X, Tag, ArrowRight, Bookmark, ArrowUpDown, Layers,
-  Compass, Share2
+  Compass, Share2, LayoutGrid, CheckSquare, UserCheck, AlertTriangle,
+  Download, ChevronRight
 } from 'lucide-react';
-import FundingDetailsModal, { type FundingOpportunityDetail } from './FundingDetailsModal';
+import FundingDetailsModal, { 
+  type FundingOpportunityDetail,
+  parseRequirements,
+  evaluateEligibility 
+} from './FundingDetailsModal';
 import './FundingOpportunities.css';
 
 const API = 'http://localhost:5000/api';
@@ -26,14 +31,35 @@ const RESEARCH_AREAS = [
   'Ethics & Society'
 ];
 
+const ELIGIBILITY_TIERS = [
+  { value: 'All', label: 'All Eligibility Tiers' },
+  { value: 'Student', label: 'Students & PhD Candidates' },
+  { value: 'Postdoc', label: 'Postdoctoral Scholars' },
+  { value: 'Faculty', label: 'Faculty & Early Career' },
+  { value: 'Principal Investigator', label: 'Senior PIs & Lab Heads' },
+  { value: 'Industry', label: 'Industry & Startups' }
+];
+
+const DEADLINE_WINDOWS = [
+  { value: 'All', label: 'All Deadlines' },
+  { value: 'urgent30', label: 'Closing Soon (≤ 30 Days)' },
+  { value: 'urgent60', label: 'Next 60 Days' },
+  { value: 'urgent90', label: 'Next 90 Days' },
+  { value: 'rolling', label: 'Rolling Admissions / Open' }
+];
+
 export const FundingOpportunities: React.FC = () => {
   const token = localStorage.getItem('token') || '';
   const userStr = localStorage.getItem('user');
   const currentUser = userStr ? JSON.parse(userStr) : null;
   const currentUserId = currentUser?.id ?? -1;
+  const currentUserRole = currentUser?.role || currentUser?.userType || '';
 
   // Tabs: 'explore' | 'my' | 'add'
   const [activeTab, setActiveTab] = useState<'explore' | 'my' | 'add'>('explore');
+
+  // View Mode: 'grid' | 'timeline'
+  const [viewMode, setViewMode] = useState<'grid' | 'timeline'>('grid');
 
   // Opportunities state
   const [opportunities, setOpportunities] = useState<FundingOpportunityDetail[]>([]);
@@ -46,7 +72,12 @@ export const FundingOpportunities: React.FC = () => {
   const [typeFilter, setTypeFilter] = useState<string>('All');
   const [statusFilter, setStatusFilter] = useState<string>('All');
   const [areaFilter, setAreaFilter] = useState<string>('All');
+  const [eligibilityFilter, setEligibilityFilter] = useState<string>('All');
+  const [deadlineFilter, setDeadlineFilter] = useState<string>('All');
   const [sortBy, setSortBy] = useState<'deadline-asc' | 'deadline-desc' | 'newest' | 'title-asc'>('deadline-asc');
+
+  // State to trigger re-reading checklist progress from localStorage
+  const [checklistRefreshKey, setChecklistRefreshKey] = useState<number>(0);
 
   // Saved/Bookmarked IDs (persisted locally)
   const [savedIds, setSavedIds] = useState<number[]>(() => {
@@ -90,6 +121,11 @@ export const FundingOpportunities: React.FC = () => {
       if (typeFilter !== 'All') params.set('fundingType', typeFilter);
       if (statusFilter !== 'All') params.set('status', statusFilter);
       if (areaFilter !== 'All') params.set('researchArea', areaFilter);
+      if (eligibilityFilter !== 'All') params.set('eligibility', eligibilityFilter);
+      if (deadlineFilter === 'urgent30') params.set('deadlineDays', '30');
+      else if (deadlineFilter === 'urgent60') params.set('deadlineDays', '60');
+      else if (deadlineFilter === 'urgent90') params.set('deadlineDays', '90');
+      else if (deadlineFilter === 'rolling') params.set('isRolling', 'true');
 
       const res = await fetch(`${API}/funding?${params.toString()}`, {
         headers: {
@@ -135,7 +171,7 @@ export const FundingOpportunities: React.FC = () => {
     } else if (activeTab === 'my') {
       fetchMyOpportunities();
     }
-  }, [activeTab, typeFilter, statusFilter, areaFilter]);
+  }, [activeTab, typeFilter, statusFilter, areaFilter, eligibilityFilter, deadlineFilter]);
 
   // Open Full Details View by fetching opportunity detail
   const handleOpenDetails = async (id: number) => {
@@ -179,6 +215,8 @@ export const FundingOpportunities: React.FC = () => {
     setTypeFilter('All');
     setStatusFilter('All');
     setAreaFilter('All');
+    setEligibilityFilter('All');
+    setDeadlineFilter('All');
     setTimeout(() => {
       fetchOpportunities();
     }, 0);
@@ -383,6 +421,105 @@ export const FundingOpportunities: React.FC = () => {
     }
   };
 
+  // Helper for reading checklist progress from localStorage
+  const getCheckedRequirementsCount = (oppId: number): number => {
+    try {
+      const stored = localStorage.getItem(`funding_reqs_checklist_${oppId}`);
+      return stored ? JSON.parse(stored).length : 0;
+    } catch {
+      return 0;
+    }
+  };
+
+  // Google Calendar link generator
+  const getGoogleCalendarUrl = (opp: FundingOpportunityDetail) => {
+    if (!opp.deadline) return '';
+    const d = new Date(opp.deadline);
+    const dateStr = d.toISOString().replace(/-|:|\.\d\d\d/g, '').slice(0, 15) + 'Z';
+    const title = `Grant Deadline: ${opp.title}`;
+    const details = `${opp.provider}\nAmount: ${opp.fundingAmount || 'N/A'}\nApply: ${opp.applicationUrl || ''}`;
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(opp.applicationUrl || '')}`;
+  };
+
+  // Download .ics for an opportunity
+  const handleDownloadIcs = (opp: FundingOpportunityDetail) => {
+    if (!opp.deadline) return;
+    const d = new Date(opp.deadline);
+    const dateStr = d.toISOString().replace(/-|:|\.\d\d\d/g, '').slice(0, 15) + 'Z';
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ResCollab//Funding Deadlines//EN',
+      'BEGIN:VEVENT',
+      `UID:rescollab-funding-${opp.id}@rescollab.org`,
+      `DTSTAMP:${dateStr}`,
+      `DTSTART:${dateStr}`,
+      `DTEND:${dateStr}`,
+      `SUMMARY:Deadline: ${opp.title}`,
+      `DESCRIPTION:${opp.provider} - Funding Deadline\\nAmount: ${opp.fundingAmount || 'N/A'}\\nDetails: ${opp.applicationUrl || ''}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Funding_Deadline_${opp.id}.ics`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Format date for timeline view
+  const formatTimelineDate = (deadlineStr?: string | null) => {
+    if (!deadlineStr) return { month: 'ROLL', day: '∞', full: 'Rolling / Open' };
+    const d = new Date(deadlineStr);
+    const month = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+    const day = d.getDate().toString().padStart(2, '0');
+    const full = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return { month, day, full };
+  };
+
+  // Chronologically partitioned timeline groups
+  const timelineGroups = useMemo(() => {
+    const urgent30: FundingOpportunityDetail[] = [];
+    const next60: FundingOpportunityDetail[] = [];
+    const later: FundingOpportunityDetail[] = [];
+    const rolling: FundingOpportunityDetail[] = [];
+    const past: FundingOpportunityDetail[] = [];
+
+    const now = new Date().getTime();
+
+    sortedOpportunities.forEach(opp => {
+      if (!opp.deadline) {
+        rolling.push(opp);
+        return;
+      }
+      const d = new Date(opp.deadline).getTime();
+      const diffDays = Math.ceil((d - now) / (1000 * 60 * 60 * 24));
+      if (diffDays < 0) {
+        past.push(opp);
+      } else if (diffDays <= 30) {
+        urgent30.push(opp);
+      } else if (diffDays <= 60) {
+        next60.push(opp);
+      } else {
+        later.push(opp);
+      }
+    });
+
+    return [
+      { id: 'urgent30', title: 'Closing Soon (Due within 30 Days)', count: urgent30.length, items: urgent30, urgency: 'urgent', icon: Clock },
+      { id: 'next60', title: 'Upcoming Deadlines (31 – 60 Days)', count: next60.length, items: next60, urgency: 'upcoming', icon: Calendar },
+      { id: 'later', title: 'Future Windows (60+ Days Ahead)', count: later.length, items: later, urgency: 'future', icon: Calendar },
+      { id: 'rolling', title: 'Continuous & Rolling Submissions', count: rolling.length, items: rolling, urgency: 'rolling', icon: Sparkles },
+      { id: 'past', title: 'Past Deadlines / Archived Calls', count: past.length, items: past, urgency: 'past', icon: AlertCircle }
+    ].filter(g => g.count > 0);
+  }, [sortedOpportunities]);
+
   return (
     <div className="funding-container" id="funding-opportunities-page">
       {/* Top Header */}
@@ -556,6 +693,34 @@ export const FundingOpportunities: React.FC = () => {
               </div>
 
               <div className="filter-group">
+                <span className="filter-label"><UserCheck size={13} /> Eligibility:</span>
+                <select
+                  id="filter-funding-eligibility"
+                  value={eligibilityFilter}
+                  onChange={e => setEligibilityFilter(e.target.value)}
+                  className="funding-select-filter"
+                >
+                  {ELIGIBILITY_TIERS.map(tier => (
+                    <option key={tier.value} value={tier.value}>{tier.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
+                <span className="filter-label"><Clock size={13} /> Deadline:</span>
+                <select
+                  id="filter-funding-deadline"
+                  value={deadlineFilter}
+                  onChange={e => setDeadlineFilter(e.target.value)}
+                  className="funding-select-filter"
+                >
+                  {DEADLINE_WINDOWS.map(win => (
+                    <option key={win.value} value={win.value}>{win.label}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="filter-group">
                 <span className="filter-label">Status:</span>
                 <select
                   id="filter-funding-status"
@@ -585,7 +750,7 @@ export const FundingOpportunities: React.FC = () => {
                 </select>
               </div>
 
-              {(searchQuery || typeFilter !== 'All' || statusFilter !== 'All' || areaFilter !== 'All') && (
+              {(searchQuery || typeFilter !== 'All' || statusFilter !== 'All' || areaFilter !== 'All' || eligibilityFilter !== 'All' || deadlineFilter !== 'All') && (
                 <button
                   type="button"
                   className="funding-reset-btn"
@@ -613,9 +778,100 @@ export const FundingOpportunities: React.FC = () => {
                 ))}
               </div>
             </div>
+
+            {/* Active Filters Summary Pills */}
+            {(searchQuery || typeFilter !== 'All' || statusFilter !== 'All' || areaFilter !== 'All' || eligibilityFilter !== 'All' || deadlineFilter !== 'All') && (
+              <div className="funding-active-filters-bar" id="funding-active-filters-bar">
+                <span className="active-filters-title">Active Filters:</span>
+                <div className="active-filter-tags">
+                  {searchQuery && (
+                    <span className="filter-pill-tag">
+                      Keyword: "{searchQuery}"
+                      <button type="button" onClick={() => { setSearchQuery(''); setTimeout(fetchOpportunities, 0); }} aria-label="Remove search filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  {typeFilter !== 'All' && (
+                    <span className="filter-pill-tag">
+                      Type: {typeFilter}
+                      <button type="button" onClick={() => setTypeFilter('All')} aria-label="Remove type filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  {statusFilter !== 'All' && (
+                    <span className="filter-pill-tag">
+                      Status: {statusFilter}
+                      <button type="button" onClick={() => setStatusFilter('All')} aria-label="Remove status filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  {areaFilter !== 'All' && (
+                    <span className="filter-pill-tag">
+                      Field: {areaFilter}
+                      <button type="button" onClick={() => setAreaFilter('All')} aria-label="Remove area filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  {eligibilityFilter !== 'All' && (
+                    <span className="filter-pill-tag">
+                      Eligibility: {ELIGIBILITY_TIERS.find(e => e.value === eligibilityFilter)?.label || eligibilityFilter}
+                      <button type="button" onClick={() => setEligibilityFilter('All')} aria-label="Remove eligibility filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  {deadlineFilter !== 'All' && (
+                    <span className="filter-pill-tag">
+                      Deadline: {DEADLINE_WINDOWS.find(d => d.value === deadlineFilter)?.label || deadlineFilter}
+                      <button type="button" onClick={() => setDeadlineFilter('All')} aria-label="Remove deadline filter">
+                        <X size={12} />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    className="btn-clear-all-filters"
+                    onClick={handleResetFilters}
+                  >
+                    Clear All
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
 
-          {/* Opportunities Cards Grid */}
+          {/* View Mode Switcher Header */}
+          <div className="funding-view-controls">
+            <span className="results-count-text">
+              Showing <strong>{sortedOpportunities.length}</strong> opportunities
+            </span>
+            <div className="funding-view-toggle">
+              <button
+                type="button"
+                className={`view-toggle-btn ${viewMode === 'grid' ? 'active' : ''}`}
+                onClick={() => setViewMode('grid')}
+                id="btn-view-mode-grid"
+                title="Cards Grid View"
+              >
+                <LayoutGrid size={15} /> Grid View
+              </button>
+              <button
+                type="button"
+                className={`view-toggle-btn ${viewMode === 'timeline' ? 'active' : ''}`}
+                onClick={() => setViewMode('timeline')}
+                id="btn-view-mode-timeline"
+                title="Deadline Timeline & Calendar View"
+              >
+                <Calendar size={15} /> Deadline Timeline
+              </button>
+            </div>
+          </div>
+
+          {/* Opportunities Main Content View */}
           {loading ? (
             <div className="funding-loading-state">
               <RefreshCw size={26} className="spin-icon" />
@@ -624,17 +880,21 @@ export const FundingOpportunities: React.FC = () => {
           ) : sortedOpportunities.length === 0 ? (
             <div className="funding-empty-state" id="empty-funding-state">
               <DollarSign size={46} />
-              <h3>No funding opportunities match your search</h3>
-              <p>Try modifying your keyword, selecting a different funding type, or resetting filters.</p>
+              <h3>No funding opportunities match your filters</h3>
+              <p>Try modifying your criteria, broadening the eligibility tier, or clearing deadline windows.</p>
               <button className="funding-primary-btn" onClick={handleResetFilters} style={{ marginTop: '1rem' }}>
                 Clear Filters
               </button>
             </div>
-          ) : (
+          ) : viewMode === 'grid' ? (
             <div className="funding-cards-grid" id="funding-cards-grid">
               {sortedOpportunities.map(opp => {
                 const deadlineMeta = getDeadlineBadge(opp.deadline);
                 const isSaved = savedIds.includes(opp.id);
+                const eligibilityEval = evaluateEligibility(currentUserRole, opp.eligibility);
+                const reqList = parseRequirements(opp.requirements);
+                const checkedCount = getCheckedRequirementsCount(opp.id);
+
                 return (
                   <div
                     key={opp.id}
@@ -692,16 +952,36 @@ export const FundingOpportunities: React.FC = () => {
                       </div>
                     )}
 
-                    {opp.description && (
-                      <p className="funding-card-snippet">
-                        {opp.description.length > 160 ? opp.description.slice(0, 160) + '…' : opp.description}
-                      </p>
+                    {/* Eligibility Compatibility Badge */}
+                    {opp.eligibility && (
+                      <div className={`funding-card-eligibility-badge ${eligibilityEval.type}`}>
+                        {eligibilityEval.match === true ? (
+                          <Shield size={12} className="badge-icon" />
+                        ) : eligibilityEval.match === false ? (
+                          <AlertTriangle size={12} className="badge-icon" />
+                        ) : (
+                          <UserCheck size={12} className="badge-icon" />
+                        )}
+                        <span>{eligibilityEval.text}</span>
+                      </div>
                     )}
 
-                    {opp.eligibility && (
-                      <div className="funding-card-eligibility-preview">
-                        <strong>Target:</strong> {opp.eligibility.length > 90 ? opp.eligibility.slice(0, 90) + '…' : opp.eligibility}
+                    {/* Requirements Progress Badge */}
+                    {reqList.length > 0 && (
+                      <div className="funding-card-reqs-badge">
+                        <CheckSquare size={12} className="badge-icon" />
+                        <span>
+                          {checkedCount > 0
+                            ? `Dossier: ${checkedCount}/${reqList.length} ready (${Math.round((checkedCount / reqList.length) * 100)}%)`
+                            : `${reqList.length} application requirements`}
+                        </span>
                       </div>
+                    )}
+
+                    {opp.description && (
+                      <p className="funding-card-snippet">
+                        {opp.description.length > 150 ? opp.description.slice(0, 150) + '…' : opp.description}
+                      </p>
                     )}
 
                     <div className="funding-card-footer">
@@ -729,6 +1009,155 @@ export const FundingOpportunities: React.FC = () => {
                   </div>
                 );
               })}
+            </div>
+          ) : (
+            /* Deadline Timeline View */
+            <div className="funding-timeline-view" id="funding-timeline-view">
+              {timelineGroups.length === 0 ? (
+                <div className="funding-empty-state">
+                  <Clock size={40} />
+                  <h3>No opportunities found for this deadline window</h3>
+                  <p>Try switching to "All Deadlines" or clearing active filters.</p>
+                </div>
+              ) : (
+                timelineGroups.map(group => (
+                  <div key={group.id} className={`timeline-section ${group.urgency}`} id={`timeline-section-${group.id}`}>
+                    <div className="timeline-section-header">
+                      <div className="section-title-wrap">
+                        <group.icon size={17} className="section-icon" />
+                        <h4>{group.title}</h4>
+                        <span className="section-count-badge">{group.count} calls</span>
+                      </div>
+                    </div>
+                    <div className="timeline-items-list">
+                      {group.items.map(opp => {
+                        const deadlineMeta = getDeadlineBadge(opp.deadline);
+                        const dateMeta = formatTimelineDate(opp.deadline);
+                        const eligibilityEval = evaluateEligibility(currentUserRole, opp.eligibility);
+                        const reqList = parseRequirements(opp.requirements);
+                        const checkedCount = getCheckedRequirementsCount(opp.id);
+
+                        return (
+                          <div key={opp.id} className="timeline-item-card" id={`timeline-item-${opp.id}`}>
+                            <div className="timeline-date-col">
+                              <div className={`date-badge-box ${deadlineMeta.isUrgent ? 'urgent' : ''} ${deadlineMeta.isPassed ? 'passed' : ''}`}>
+                                <span className="date-month">{dateMeta.month}</span>
+                                <span className="date-day">{dateMeta.day}</span>
+                              </div>
+                              <span className={`date-countdown-tag ${deadlineMeta.isUrgent ? 'urgent' : ''} ${deadlineMeta.isPassed ? 'passed' : ''}`}>
+                                <Clock size={11} /> {deadlineMeta.text}
+                              </span>
+                            </div>
+
+                            <div className="timeline-content-col">
+                              <div className="timeline-content-top">
+                                <span className={`funding-pill ${getFundingBadgeClass(opp.fundingType)}`}>
+                                  <Award size={11} /> {opp.fundingType}
+                                </span>
+                                <span className={`funding-status-pill ${getStatusBadgeClass(opp.status)}`}>
+                                  {opp.status}
+                                </span>
+                                {opp.fundingAmount && (
+                                  <span className="timeline-amount-pill">
+                                    <DollarSign size={12} /> {opp.fundingAmount}
+                                  </span>
+                                )}
+                                {opp.researchArea && (
+                                  <span className="timeline-area-pill">
+                                    <Tag size={11} /> {opp.researchArea}
+                                  </span>
+                                )}
+                              </div>
+
+                              <h3 
+                                className="timeline-item-title clickable"
+                                onClick={() => handleOpenDetails(opp.id)}
+                              >
+                                {opp.title}
+                              </h3>
+
+                              <div className="timeline-item-provider">
+                                <Building2 size={13} /> {opp.provider}
+                              </div>
+
+                              <div className="timeline-metadata-row">
+                                {opp.eligibility && (
+                                  <div className={`funding-card-eligibility-badge mini ${eligibilityEval.type}`}>
+                                    {eligibilityEval.match === true ? (
+                                      <Shield size={11} />
+                                    ) : eligibilityEval.match === false ? (
+                                      <AlertTriangle size={11} />
+                                    ) : (
+                                      <UserCheck size={11} />
+                                    )}
+                                    <span>{eligibilityEval.text}</span>
+                                  </div>
+                                )}
+
+                                {reqList.length > 0 && (
+                                  <div className="funding-card-reqs-badge mini">
+                                    <CheckSquare size={11} />
+                                    <span>
+                                      {checkedCount > 0
+                                        ? `Dossier: ${checkedCount}/${reqList.length} ready (${Math.round((checkedCount / reqList.length) * 100)}%)`
+                                        : `${reqList.length} dossier requirements`}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            <div className="timeline-actions-col">
+                              <button
+                                type="button"
+                                className="btn-view-details"
+                                onClick={() => handleOpenDetails(opp.id)}
+                                title="View detailed eligibility and checklist"
+                              >
+                                <Eye size={13} /> Details
+                              </button>
+
+                              {opp.deadline && (
+                                <>
+                                  <a
+                                    href={getGoogleCalendarUrl(opp)}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="btn-calendar-quick"
+                                    title="Add to Google Calendar"
+                                  >
+                                    <Calendar size={13} /> Calendar
+                                  </a>
+                                  <button
+                                    type="button"
+                                    className="btn-calendar-quick"
+                                    onClick={() => handleDownloadIcs(opp)}
+                                    title="Download iCal (.ics)"
+                                  >
+                                    <Download size={13} /> .ics
+                                  </button>
+                                </>
+                              )}
+
+                              {opp.applicationUrl && (
+                                <a
+                                  href={opp.applicationUrl.startsWith('http') ? opp.applicationUrl : `https://${opp.applicationUrl}`}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="btn-card-apply"
+                                  title="Open official portal"
+                                >
+                                  Apply <ArrowRight size={12} />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
@@ -1079,7 +1508,11 @@ export const FundingOpportunities: React.FC = () => {
         <FundingDetailsModal
           opportunity={selectedOpportunity}
           isOwner={selectedOpportunity.postedById === currentUserId}
-          onClose={() => setSelectedOpportunity(null)}
+          userRole={currentUserRole}
+          onClose={() => {
+            setSelectedOpportunity(null);
+            setChecklistRefreshKey(k => k + 1);
+          }}
           onEdit={opp => handleStartEdit(opp)}
           onDelete={handleDeleteOpportunity}
           onStatusToggle={handleToggleStatus}

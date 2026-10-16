@@ -33,13 +33,16 @@ namespace ResCollab.Api.Controllers
         // BROWSE & DISCOVERY ENDPOINTS
         // =============================================
 
-        // GET /api/funding?fundingType=Grant&researchArea=AI&status=Open&search=X
+        // GET /api/funding?fundingType=Grant&researchArea=AI&status=Open&eligibility=PhD&deadlineDays=30&isRolling=false&search=X
         [HttpGet]
         public async Task<IActionResult> GetOpportunities(
-            [FromQuery] string? fundingType,
-            [FromQuery] string? researchArea,
-            [FromQuery] string? status,
-            [FromQuery] string? search)
+            [FromQuery] string? fundingType = null,
+            [FromQuery] string? researchArea = null,
+            [FromQuery] string? status = null,
+            [FromQuery] string? eligibility = null,
+            [FromQuery] int? deadlineDays = null,
+            [FromQuery] bool? isRolling = null,
+            [FromQuery] string? search = null)
         {
             var query = _context.FundingOpportunities
                 .Include(f => f.PostedBy)
@@ -57,12 +60,28 @@ namespace ResCollab.Api.Controllers
             if (!string.IsNullOrWhiteSpace(researchArea) && !string.Equals(researchArea, "All", StringComparison.OrdinalIgnoreCase))
                 query = query.Where(f => f.ResearchArea != null && f.ResearchArea.Contains(researchArea));
 
+            if (!string.IsNullOrWhiteSpace(eligibility) && !string.Equals(eligibility, "All", StringComparison.OrdinalIgnoreCase))
+                query = query.Where(f => f.Eligibility != null && f.Eligibility.Contains(eligibility));
+
+            if (isRolling.HasValue && isRolling.Value)
+            {
+                query = query.Where(f => f.Deadline == null);
+            }
+            else if (deadlineDays.HasValue && deadlineDays.Value > 0)
+            {
+                var now = DateTime.UtcNow.Date;
+                var maxDate = now.AddDays(deadlineDays.Value);
+                query = query.Where(f => f.Deadline.HasValue && f.Deadline.Value >= now && f.Deadline.Value <= maxDate);
+            }
+
             if (!string.IsNullOrWhiteSpace(search))
                 query = query.Where(f =>
                     f.Title.Contains(search) ||
                     f.Provider.Contains(search) ||
                     (f.ResearchArea != null && f.ResearchArea.Contains(search)) ||
-                    (f.Description != null && f.Description.Contains(search)));
+                    (f.Description != null && f.Description.Contains(search)) ||
+                    (f.Eligibility != null && f.Eligibility.Contains(search)) ||
+                    (f.Requirements != null && f.Requirements.Contains(search)));
 
             var results = await query
                 .OrderBy(f => f.Deadline == null)         // entries with a deadline come first

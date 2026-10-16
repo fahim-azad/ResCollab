@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, ExternalLink, Calendar, Building2, CheckCircle2, 
   DollarSign, Clock, FileText, Share2, Check, 
-  Award, ArrowRight, Download, Edit3, Trash2, Tag, Shield
+  Award, ArrowRight, Download, Edit3, Trash2, Tag, Shield,
+  CheckSquare, Square, UserCheck, AlertTriangle, Sparkles
 } from 'lucide-react';
 
 export interface FundingOpportunityDetail {
@@ -28,15 +29,52 @@ export interface FundingOpportunityDetail {
 interface FundingDetailsModalProps {
   opportunity: FundingOpportunityDetail;
   isOwner?: boolean;
+  userRole?: string | null;
   onClose: () => void;
   onEdit?: (opp: FundingOpportunityDetail) => void;
   onDelete?: (id: number) => void;
   onStatusToggle?: (id: number, currentStatus: string) => void;
 }
 
+export const parseRequirements = (req?: string | null): string[] => {
+  if (!req) return [];
+  return req
+    .split(/;|\n|\u2022|\d+\.\s/)
+    .map(s => s.trim().replace(/^[-*•]\s*/, ''))
+    .filter(s => s.length > 2);
+};
+
+export const evaluateEligibility = (userRole?: string | null, eligibility?: string | null) => {
+  if (!eligibility) return { match: true, text: 'Open to All Qualified Researchers', type: 'open' };
+  const e = eligibility.toLowerCase();
+  const r = (userRole || '').toLowerCase();
+
+  const isStudent = r.includes('student');
+  const isSupervisor = r.includes('supervisor') || r.includes('faculty') || r.includes('professor');
+
+  const targetsStudent = e.includes('student') || e.includes('phd') || e.includes('graduate') || e.includes('undergraduate');
+  const targetsFaculty = e.includes('faculty') || e.includes('principal investigator') || e.includes('pi') || e.includes('professor') || e.includes('tenured');
+  const targetsPostdoc = e.includes('postdoc') || e.includes('postdoctoral');
+
+  if (isStudent && targetsStudent) {
+    return { match: true, text: 'Profile Match: Eligible for Students & PhD Candidates', type: 'match' };
+  }
+  if (isSupervisor && targetsFaculty) {
+    return { match: true, text: 'Profile Match: Eligible for Faculty & Principal Investigators', type: 'match' };
+  }
+  if (targetsPostdoc) {
+    return { match: null, text: 'Target: Postdoctoral Researcher Standing', type: 'postdoc' };
+  }
+  if (targetsFaculty && isStudent) {
+    return { match: false, text: 'Target Notice: Faculty / Principal Investigator Standing Required', type: 'notice' };
+  }
+  return { match: true, text: 'Broad Academic Eligibility', type: 'open' };
+};
+
 export const FundingDetailsModal: React.FC<FundingDetailsModalProps> = ({
   opportunity,
   isOwner,
+  userRole,
   onClose,
   onEdit,
   onDelete,
@@ -44,24 +82,54 @@ export const FundingDetailsModal: React.FC<FundingDetailsModalProps> = ({
 }) => {
   const [copied, setCopied] = useState(false);
 
-  // Calculate days remaining to deadline
+  // Requirements checklist state with localStorage persistence
+  const requirementsList = parseRequirements(opportunity.requirements);
+  const checklistStorageKey = `funding_reqs_checklist_${opportunity.id}`;
+
+  const [completedReqs, setCompletedReqs] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem(checklistStorageKey);
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const toggleRequirement = (reqItem: string) => {
+    setCompletedReqs(prev => {
+      const next = prev.includes(reqItem)
+        ? prev.filter(r => r !== reqItem)
+        : [...prev, reqItem];
+      localStorage.setItem(checklistStorageKey, JSON.stringify(next));
+      return next;
+    });
+  };
+
+  const clearChecklist = () => {
+    setCompletedReqs([]);
+    localStorage.removeItem(checklistStorageKey);
+  };
+
+  const eligibilityEval = evaluateEligibility(userRole, opportunity.eligibility);
+
+  // Calculate detailed deadline metadata
   const getDeadlineMeta = (deadlineStr?: string | null) => {
-    if (!deadlineStr) return { text: 'Rolling / Open Deadline', isUrgent: false, isPassed: false };
+    if (!deadlineStr) return { text: 'Rolling / Open Deadline', isUrgent: false, isPassed: false, days: null };
     const deadline = new Date(deadlineStr);
     const now = new Date();
     const diffMs = deadline.getTime() - now.getTime();
     const diffDays = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
 
     if (diffDays < 0) {
-      return { text: `Passed (${deadline.toLocaleDateString()})`, isUrgent: false, isPassed: true };
+      return { text: `Passed (${deadline.toLocaleDateString()})`, isUrgent: false, isPassed: true, days: diffDays };
     }
     if (diffDays === 0) {
-      return { text: 'Deadline is TODAY!', isUrgent: true, isPassed: false };
+      return { text: 'Deadline is TODAY!', isUrgent: true, isPassed: false, days: 0 };
     }
     if (diffDays <= 7) {
-      return { text: `Due in ${diffDays} day${diffDays === 1 ? '' : 's'} (${deadline.toLocaleDateString()})`, isUrgent: true, isPassed: false };
+      return { text: `Due in ${diffDays} day${diffDays === 1 ? '' : 's'} (${deadline.toLocaleDateString()})`, isUrgent: true, isPassed: false, days: diffDays };
     }
-    return { text: `Due in ${diffDays} days (${deadline.toLocaleDateString()})`, isUrgent: false, isPassed: false };
+    return { text: `Due in ${diffDays} days (${deadline.toLocaleDateString()})`, isUrgent: false, isPassed: false, days: diffDays };
   };
 
   const deadlineMeta = getDeadlineMeta(opportunity.deadline);
@@ -120,6 +188,19 @@ END:VCALENDAR`;
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
   };
+
+  const getGoogleCalendarUrl = () => {
+    if (!opportunity.deadline) return '';
+    const d = new Date(opportunity.deadline);
+    const dateStr = d.toISOString().replace(/-|:|\.\d\d\d/g, '').slice(0, 15) + 'Z';
+    const title = `Grant Deadline: ${opportunity.title}`;
+    const details = `${opportunity.provider}\nAmount: ${opportunity.fundingAmount || 'N/A'}\nApply: ${opportunity.applicationUrl || ''}`;
+    return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}&location=${encodeURIComponent(opportunity.applicationUrl || '')}`;
+  };
+
+  const progressPercent = requirementsList.length > 0
+    ? Math.round((completedReqs.length / requirementsList.length) * 100)
+    : 0;
 
   return (
     <div className="funding-modal-backdrop" onClick={onClose} id="funding-details-modal-backdrop">
@@ -192,6 +273,23 @@ END:VCALENDAR`;
           </div>
         )}
 
+        {/* Profile Compatibility Banner */}
+        <div className={`eligibility-profile-banner ${eligibilityEval.type}`}>
+          <div className="banner-icon">
+            {eligibilityEval.match === true ? (
+              <UserCheck size={18} />
+            ) : eligibilityEval.match === false ? (
+              <AlertTriangle size={18} />
+            ) : (
+              <Sparkles size={18} />
+            )}
+          </div>
+          <div className="banner-content">
+            <span className="banner-title">Applicant Profile Assessment</span>
+            <span className="banner-desc">{eligibilityEval.text}</span>
+          </div>
+        </div>
+
         {/* Main Content Sections */}
         <div className="funding-modal-sections">
           {/* Description Section */}
@@ -210,7 +308,7 @@ END:VCALENDAR`;
           {opportunity.eligibility && (
             <div className="funding-section">
               <h3>
-                <CheckCircle2 size={16} /> Eligibility Criteria
+                <CheckCircle2 size={16} /> Eligibility Criteria & Applicant Profile
               </h3>
               <div className="section-body eligibility-body">
                 <p>{opportunity.eligibility}</p>
@@ -218,14 +316,47 @@ END:VCALENDAR`;
             </div>
           )}
 
-          {/* Submission Requirements Section */}
-          {opportunity.requirements && (
+          {/* Submission Requirements & Interactive Checklist */}
+          {requirementsList.length > 0 && (
             <div className="funding-section">
-              <h3>
-                <FileText size={16} /> Submission & Application Requirements
-              </h3>
-              <div className="section-body requirements-body">
-                <p>{opportunity.requirements}</p>
+              <div className="checklist-section-header">
+                <h3>
+                  <FileText size={16} /> Application Requirements & Checklist
+                </h3>
+                {completedReqs.length > 0 && (
+                  <button type="button" className="btn-clear-checklist" onClick={clearChecklist}>
+                    Reset Checklist
+                  </button>
+                )}
+              </div>
+
+              {/* Progress bar */}
+              <div className="checklist-progress-bar-wrap">
+                <div className="progress-info">
+                  <span>Dossier Preparation Progress:</span>
+                  <strong>{completedReqs.length} of {requirementsList.length} items ready ({progressPercent}%)</strong>
+                </div>
+                <div className="progress-track">
+                  <div className="progress-fill" style={{ width: `${progressPercent}%` }} />
+                </div>
+              </div>
+
+              <div className="checklist-items-list">
+                {requirementsList.map((reqItem, idx) => {
+                  const isChecked = completedReqs.includes(reqItem);
+                  return (
+                    <div
+                      key={idx}
+                      className={`checklist-item ${isChecked ? 'completed' : ''}`}
+                      onClick={() => toggleRequirement(reqItem)}
+                    >
+                      <button type="button" className="checklist-checkbox" aria-label="Toggle requirement">
+                        {isChecked ? <CheckSquare size={18} className="checked-icon" /> : <Square size={18} />}
+                      </button>
+                      <span className="checklist-text">{reqItem}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -264,7 +395,7 @@ END:VCALENDAR`;
           </div>
         )}
 
-        {/* Share & Calendar Actions */}
+        {/* Share & Calendar Tools */}
         <div className="funding-modal-tools">
           <button 
             type="button" 
@@ -277,15 +408,28 @@ END:VCALENDAR`;
           </button>
 
           {opportunity.deadline && (
-            <button 
-              type="button" 
-              className="btn-tool-pill"
-              onClick={handleDownloadCalendarEvent}
-              title="Add deadline to Apple/Google/Outlook Calendar"
-            >
-              <Download size={14} />
-              <span>Add to Calendar (.ics)</span>
-            </button>
+            <>
+              <a
+                href={getGoogleCalendarUrl()}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn-tool-pill"
+                title="Add deadline directly to Google Calendar"
+              >
+                <Calendar size={14} />
+                <span>Google Calendar</span>
+              </a>
+
+              <button 
+                type="button" 
+                className="btn-tool-pill"
+                onClick={handleDownloadCalendarEvent}
+                title="Download iCal (.ics) for Apple/Outlook Calendar"
+              >
+                <Download size={14} />
+                <span>Download .ics</span>
+              </button>
+            </>
           )}
         </div>
 

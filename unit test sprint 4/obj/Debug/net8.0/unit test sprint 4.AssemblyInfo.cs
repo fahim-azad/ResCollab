@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("unit test sprint 4")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+69e950906f883cec09997be120d0ddce88f6c0b7")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+cd9b458929273450899a8b494b195fb1ddb380bf")]
 [assembly: System.Reflection.AssemblyProductAttribute("unit test sprint 4")]
 [assembly: System.Reflection.AssemblyTitleAttribute("unit test sprint 4")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

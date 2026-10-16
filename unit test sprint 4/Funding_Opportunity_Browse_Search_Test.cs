@@ -76,7 +76,7 @@ namespace ResCollab.Tests.Sprint4
                 var controller = CreateControllerWithUser(context, 1);
 
                 // 1. Filter by FundingType = Grant
-                var resultGrant = await controller.GetOpportunities("Grant", null, "Open", null);
+                var resultGrant = await controller.GetOpportunities(fundingType: "Grant", status: "Open");
                 var okResultGrant = Assert.IsType<OkObjectResult>(resultGrant);
                 var listGrant = Assert.IsAssignableFrom<System.Collections.IEnumerable>(okResultGrant.Value);
                 var countGrant = 0;
@@ -84,7 +84,7 @@ namespace ResCollab.Tests.Sprint4
                 Assert.Equal(1, countGrant);
 
                 // 2. Filter with status = All
-                var resultAll = await controller.GetOpportunities(null, null, "All", null);
+                var resultAll = await controller.GetOpportunities(status: "All");
                 var okResultAll = Assert.IsType<OkObjectResult>(resultAll);
                 var listAll = Assert.IsAssignableFrom<System.Collections.IEnumerable>(okResultAll.Value);
                 var countAll = 0;
@@ -122,7 +122,7 @@ namespace ResCollab.Tests.Sprint4
                 var controller = CreateControllerWithUser(context, 1);
 
                 // Search for "Genomic"
-                var result = await controller.GetOpportunities(null, null, "Open", "Genomic");
+                var result = await controller.GetOpportunities(status: "Open", search: "Genomic");
                 var okResult = Assert.IsType<OkObjectResult>(result);
                 var list = Assert.IsAssignableFrom<System.Collections.IEnumerable>(okResult.Value);
                 var count = 0;
@@ -178,6 +178,98 @@ namespace ResCollab.Tests.Sprint4
                 var result = await controller.GetOpportunity(9999);
 
                 Assert.IsType<NotFoundObjectResult>(result);
+            }
+        }
+
+        [Fact]
+        public async Task GetOpportunities_ShouldFilterByEligibility()
+        {
+            var dbName = $"Test_Funding_Elig_{Guid.NewGuid()}";
+            using (var context = CreateInMemoryContext(dbName))
+            {
+                context.FundingOpportunities.AddRange(
+                    new FundingOpportunity
+                    {
+                        Title = "Postdoc Fellowship in Quantum Computing",
+                        Provider = "National Laboratory",
+                        FundingType = "Fellowship",
+                        Status = "Open",
+                        Eligibility = "Postdoctoral researchers within 3 years of PhD"
+                    },
+                    new FundingOpportunity
+                    {
+                        Title = "Senior Faculty Research Award",
+                        Provider = "Science Foundation",
+                        FundingType = "Award",
+                        Status = "Open",
+                        Eligibility = "Tenured faculty members"
+                    }
+                );
+                await context.SaveChangesAsync();
+
+                var controller = CreateControllerWithUser(context, 1);
+
+                // Filter for "Postdoctoral"
+                var result = await controller.GetOpportunities(eligibility: "Postdoctoral");
+                var okResult = Assert.IsType<OkObjectResult>(result);
+                var list = Assert.IsAssignableFrom<System.Collections.IEnumerable>(okResult.Value);
+                var count = 0;
+                foreach (var item in list) count++;
+                Assert.Equal(1, count);
+            }
+        }
+
+        [Fact]
+        public async Task GetOpportunities_ShouldFilterByDeadlineDaysAndRolling()
+        {
+            var dbName = $"Test_Funding_Deadlines_{Guid.NewGuid()}";
+            using (var context = CreateInMemoryContext(dbName))
+            {
+                context.FundingOpportunities.AddRange(
+                    new FundingOpportunity
+                    {
+                        Title = "Urgent Grant Call",
+                        Provider = "Agency A",
+                        FundingType = "Grant",
+                        Status = "Open",
+                        Deadline = DateTime.UtcNow.AddDays(15)
+                    },
+                    new FundingOpportunity
+                    {
+                        Title = "Far Future Grant Call",
+                        Provider = "Agency B",
+                        FundingType = "Grant",
+                        Status = "Open",
+                        Deadline = DateTime.UtcNow.AddDays(180)
+                    },
+                    new FundingOpportunity
+                    {
+                        Title = "Rolling Open Scholarship",
+                        Provider = "Foundation C",
+                        FundingType = "Scholarship",
+                        Status = "Open",
+                        Deadline = null
+                    }
+                );
+                await context.SaveChangesAsync();
+
+                var controller = CreateControllerWithUser(context, 1);
+
+                // 1. Filter for deadline within 30 days
+                var res30 = await controller.GetOpportunities(deadlineDays: 30);
+                var ok30 = Assert.IsType<OkObjectResult>(res30);
+                var list30 = Assert.IsAssignableFrom<System.Collections.IEnumerable>(ok30.Value);
+                var count30 = 0;
+                foreach (var item in list30) count30++;
+                Assert.Equal(1, count30);
+
+                // 2. Filter for rolling deadlines (Deadline == null)
+                var resRolling = await controller.GetOpportunities(isRolling: true);
+                var okRolling = Assert.IsType<OkObjectResult>(resRolling);
+                var listRolling = Assert.IsAssignableFrom<System.Collections.IEnumerable>(okRolling.Value);
+                var countRolling = 0;
+                foreach (var item in listRolling) countRolling++;
+                Assert.Equal(1, countRolling);
             }
         }
     }
