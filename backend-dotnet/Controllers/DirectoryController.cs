@@ -252,7 +252,20 @@ namespace ResCollab.Api.Controllers
             _context.LaboratoryMembers.Add(member);
             await _context.SaveChangesAsync();
 
-            return StatusCode(201, lab);
+            return StatusCode(201, new {
+                lab.Id,
+                lab.Name,
+                lab.Description,
+                lab.ResearchFocus,
+                lab.Institution,
+                lab.Department,
+                lab.Website,
+                lab.Location,
+                lab.Visibility,
+                lab.Status,
+                lab.HeadUserId,
+                lab.CreatedAt
+            });
         }
 
         // PUT /api/directory/laboratories/{id}
@@ -278,7 +291,20 @@ namespace ResCollab.Api.Controllers
             lab.UpdatedAt = DateTime.UtcNow;
 
             await _context.SaveChangesAsync();
-            return Ok(lab);
+            return Ok(new {
+                lab.Id,
+                lab.Name,
+                lab.Description,
+                lab.ResearchFocus,
+                lab.Institution,
+                lab.Department,
+                lab.Website,
+                lab.Location,
+                lab.Visibility,
+                lab.Status,
+                lab.HeadUserId,
+                lab.UpdatedAt
+            });
         }
 
         // DELETE /api/directory/laboratories/{id}
@@ -352,7 +378,13 @@ namespace ResCollab.Api.Controllers
             };
             _context.LaboratoryMembers.Add(member);
             await _context.SaveChangesAsync();
-            return StatusCode(201, member);
+            return StatusCode(201, new {
+                member.Id,
+                member.LaboratoryId,
+                member.UserId,
+                member.Role,
+                member.JoinedAt
+            });
         }
 
         // DELETE /api/directory/laboratories/{id}/members/{memberId}
