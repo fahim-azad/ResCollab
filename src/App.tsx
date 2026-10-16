@@ -19,6 +19,7 @@ import UniversityManagement from './components/UniversityManagement';
 import ResearchDirectory from './components/ResearchDirectory';
 import ProjectDiscovery from './components/ProjectDiscovery';
 import MessagesPage from './components/MessagesPage';
+import PublicationManagement from './components/PublicationManagement';
 import './index.css';
 
 const App: React.FC = () => {
@@ -46,6 +47,7 @@ const App: React.FC = () => {
             <Route path="/directory" element={<ResearchDirectory />} />
             <Route path="/discovery" element={<ProjectDiscovery />} />
             <Route path="/messages" element={<MessagesPage />} />
+            <Route path="/publications" element={<PublicationManagement />} />
           </Route>
         </Route>
       </Routes>

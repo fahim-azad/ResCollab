@@ -4,7 +4,7 @@ import {
   Search, Folder, User,
   Bell, Edit2, User as UserIcon, BookOpen, Settings as SettingsIcon,
   MapPin, Mail, Building, GraduationCap, Globe, Link as LinkIcon,
-  Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield
+  Save, X, FileText, Award, UserPlus, UserCheck, Clock, Handshake, CheckCircle, Shield, ExternalLink
 } from 'lucide-react';
 import './ProfilePage.css';
 
@@ -33,6 +33,8 @@ const ProfilePage: React.FC = () => {
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [collabProfile, setCollabProfile] = useState<any>(null);
+  const [userPublications, setUserPublications] = useState<any[]>([]);
+  const [activeProfileTab, setActiveProfileTab] = useState<'overview' | 'publications'>('overview');
 
   const fetchProfile = async () => {
     const token = localStorage.getItem('token');
@@ -90,6 +92,20 @@ const ProfilePage: React.FC = () => {
         }
       } catch {
         // Optional profile data
+      }
+
+      // Fetch publications
+      try {
+        const pubUrl = userId 
+          ? `http://localhost:5000/api/publication?ownerId=${data.id}` 
+          : 'http://localhost:5000/api/publication/my';
+        const pubRes = await fetch(pubUrl, { headers: { 'Authorization': `Bearer ${token}` } });
+        if (pubRes.ok) {
+          const pubData = await pubRes.json();
+          setUserPublications(pubData);
+        }
+      } catch {
+        // Optional publication data
       }
     } catch (err: any) {
       console.error(err);
@@ -251,8 +267,13 @@ const ProfilePage: React.FC = () => {
             </div>
 
             <div className="header-stats">
-              <div className="stat-item">
-                <div className="stat-number">12</div>
+              <div 
+                className="stat-item" 
+                style={{ cursor: 'pointer' }} 
+                onClick={() => setActiveProfileTab('publications')}
+                title="View Publications"
+              >
+                <div className="stat-number">{userPublications.length}</div>
                 <div className="stat-label">Publications</div>
               </div>
               <div className="stat-item">
@@ -268,16 +289,27 @@ const ProfilePage: React.FC = () => {
 
           {/* Tabs */}
           <div className="profile-tabs">
-            <button className="tab-button active"><UserIcon size={16} /> Overview</button>
+            <button 
+              className={`tab-button ${activeProfileTab === 'overview' ? 'active' : ''}`}
+              onClick={() => setActiveProfileTab('overview')}
+            >
+              <UserIcon size={16} /> Overview
+            </button>
+            <button 
+              className={`tab-button ${activeProfileTab === 'publications' ? 'active' : ''}`}
+              onClick={() => setActiveProfileTab('publications')}
+            >
+              <BookOpen size={16} /> Publications ({userPublications.length})
+            </button>
             <button className="tab-button"><FileText size={16} /> Research</button>
             <button className="tab-button"><Folder size={16} /> Projects</button>
-            <button className="tab-button"><BookOpen size={16} /> Publications</button>
             <button className="tab-button"><Award size={16} /> Skills</button>
             <button className="tab-button"><SettingsIcon size={16} /> Settings</button>
           </div>
 
           {/* Grid Content */}
-          <div className="profile-grid">
+          {activeProfileTab === 'overview' ? (
+            <div className="profile-grid">
             
             {/* Personal Information */}
             <div className="grid-card">
@@ -509,6 +541,74 @@ const ProfilePage: React.FC = () => {
             </div>
 
           </div>
+          ) : (
+            <div className="profile-publications-view" style={{ background: '#ffffff', border: '1px solid #e2e8f0', borderRadius: '16px', padding: '1.75rem', marginTop: '1rem', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <div>
+                  <h2 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#0f172a', margin: '0 0 0.25rem 0' }}>Research Publications</h2>
+                  <p style={{ color: '#64748b', fontSize: '0.9rem', margin: 0 }}>Peer-reviewed papers, conference proceedings, and academic contributions.</p>
+                </div>
+                {!userId && (
+                  <button 
+                    onClick={() => navigate('/publications')}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', background: '#2563eb', color: '#fff', border: 'none', borderRadius: '8px', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer' }}
+                  >
+                    <BookOpen size={15} /> Manage Publications
+                  </button>
+                )}
+              </div>
+
+              {userPublications.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '3rem 1rem', color: '#94a3b8' }}>
+                  <BookOpen size={40} style={{ margin: '0 auto 0.75rem auto', display: 'block', opacity: 0.6 }} />
+                  <p style={{ fontSize: '1rem', fontWeight: 600, color: '#475569', margin: '0 0 0.25rem 0' }}>No publications found</p>
+                  <p style={{ fontSize: '0.88rem', margin: 0 }}>This researcher has not cataloged any publications yet.</p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  {userPublications.map((pub: any) => (
+                    <div key={pub.id} style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '12px', padding: '1.25rem' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.4rem', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#eff6ff', color: '#2563eb', border: '1px solid #dbeafe' }}>
+                          {pub.publicationType}
+                        </span>
+                        <span style={{ fontSize: '0.75rem', fontWeight: 600, padding: '0.2rem 0.55rem', borderRadius: '6px', background: '#f1f5f9', color: '#475569' }}>
+                          {pub.publicationYear}
+                        </span>
+                      </div>
+                      <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#0f172a', margin: '0 0 0.35rem 0' }}>{pub.title}</h3>
+                      <p style={{ fontSize: '0.88rem', color: '#475569', margin: '0 0 0.35rem 0' }}>{pub.authors}</p>
+                      {pub.journalOrConference && (
+                        <p style={{ fontSize: '0.85rem', color: '#64748b', fontStyle: 'italic', margin: '0 0 0.5rem 0' }}>{pub.journalOrConference}</p>
+                      )}
+                      <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                        {pub.doi && (
+                          <a 
+                            href={pub.doi.startsWith('http') ? pub.doi : `https://doi.org/${pub.doi}`} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            style={{ fontSize: '0.8rem', color: '#2563eb', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            DOI: {pub.doi} <ExternalLink size={12} />
+                          </a>
+                        )}
+                        {pub.sourceLink && (
+                          <a 
+                            href={pub.sourceLink} 
+                            target="_blank" 
+                            rel="noreferrer" 
+                            style={{ fontSize: '0.8rem', color: '#059669', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}
+                          >
+                            Paper Source <ExternalLink size={12} />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       {/* Edit Form Overlay */}
