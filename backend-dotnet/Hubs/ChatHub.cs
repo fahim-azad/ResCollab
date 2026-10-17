@@ -118,8 +118,12 @@ namespace ResCollab.Api.Hubs
                 message.IsDeleted
             };
 
+            // Ensure sender is in the conversation group
+            await Groups.AddToGroupAsync(Context.ConnectionId, $"conversation_{conversationId}");
+
             // Broadcast to all participants currently joined to the conversation
             await Clients.Group($"conversation_{conversationId}").SendAsync("ReceiveMessage", messageDto);
+            await Clients.Caller.SendAsync("ReceiveMessage", messageDto);
 
             // Notify participants' private groups to update conversation list snippets and unread indicators
             if (conv != null)

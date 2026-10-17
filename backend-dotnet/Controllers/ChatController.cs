@@ -635,12 +635,13 @@ namespace ResCollab.Api.Controllers
                 .Select(cp => cp.ConversationId)
                 .ToListAsync();
 
+            var lowerQ = q.ToLower();
             var results = await _context.ChatMessages
                 .Include(m => m.Sender)
                 .Where(m =>
                     conversationIds.Contains(m.ConversationId) &&
                     !m.IsDeleted &&
-                    m.Content.Contains(q))
+                    (EF.Functions.Like(m.Content, $"%{q}%") || m.Content.ToLower().Contains(lowerQ)))
                 .OrderByDescending(m => m.CreatedAt)
                 .Take(50)
                 .Select(m => new {

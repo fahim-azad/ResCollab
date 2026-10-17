@@ -396,7 +396,7 @@ const MessagesPage: React.FC = () => {
         chatSignalR.leaveConversation(activeConvId);
       }
     };
-  }, [activeConvId]);
+  }, [activeConvId, signalRStatus]);
 
   // Periodic polling for conversations list and total unread
   useEffect(() => {
@@ -498,6 +498,8 @@ const MessagesPage: React.FC = () => {
         setComposerText('');
         setComposerType('Text');
         setShowEmojiPicker(false);
+        await fetchMessages(activeConvId, true);
+        fetchConversations(true);
         setTimeout(() => scrollToBottom('smooth'), 50);
       }
     } catch (err) {
@@ -1787,6 +1789,7 @@ const MessagesPage: React.FC = () => {
                   onChange={e => setGlobalSearchQuery(e.target.value)}
                   autoFocus
                 />
+                <button type="submit" id="btn-submit-global-search" style={{ display: 'none' }}>Search</button>
               </form>
 
               <div className="global-search-results">
