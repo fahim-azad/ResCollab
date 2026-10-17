@@ -113,19 +113,33 @@ export const FundingOpportunities: React.FC = () => {
   const [formError, setFormError] = useState<string | null>(null);
 
   // Fetch Public Opportunities with query parameters
-  const fetchOpportunities = async () => {
+  const fetchOpportunities = async (overrides?: {
+    search?: string;
+    fundingType?: string;
+    status?: string;
+    researchArea?: string;
+    eligibility?: string;
+    deadline?: string;
+  }) => {
     setLoading(true);
     try {
+      const qSearch = overrides?.search !== undefined ? overrides.search : searchQuery;
+      const qType = overrides?.fundingType !== undefined ? overrides.fundingType : typeFilter;
+      const qStatus = overrides?.status !== undefined ? overrides.status : statusFilter;
+      const qArea = overrides?.researchArea !== undefined ? overrides.researchArea : areaFilter;
+      const qElig = overrides?.eligibility !== undefined ? overrides.eligibility : eligibilityFilter;
+      const qDeadline = overrides?.deadline !== undefined ? overrides.deadline : deadlineFilter;
+
       const params = new URLSearchParams();
-      if (searchQuery.trim()) params.set('search', searchQuery.trim());
-      if (typeFilter !== 'All') params.set('fundingType', typeFilter);
-      if (statusFilter !== 'All') params.set('status', statusFilter);
-      if (areaFilter !== 'All') params.set('researchArea', areaFilter);
-      if (eligibilityFilter !== 'All') params.set('eligibility', eligibilityFilter);
-      if (deadlineFilter === 'urgent30') params.set('deadlineDays', '30');
-      else if (deadlineFilter === 'urgent60') params.set('deadlineDays', '60');
-      else if (deadlineFilter === 'urgent90') params.set('deadlineDays', '90');
-      else if (deadlineFilter === 'rolling') params.set('isRolling', 'true');
+      if (qSearch.trim()) params.set('search', qSearch.trim());
+      if (qType !== 'All') params.set('fundingType', qType);
+      if (qStatus !== 'All') params.set('status', qStatus);
+      if (qArea !== 'All') params.set('researchArea', qArea);
+      if (qElig !== 'All') params.set('eligibility', qElig);
+      if (qDeadline === 'urgent30') params.set('deadlineDays', '30');
+      else if (qDeadline === 'urgent60') params.set('deadlineDays', '60');
+      else if (qDeadline === 'urgent90') params.set('deadlineDays', '90');
+      else if (qDeadline === 'rolling') params.set('isRolling', 'true');
 
       const res = await fetch(`${API}/funding?${params.toString()}`, {
         headers: {
@@ -209,6 +223,12 @@ export const FundingOpportunities: React.FC = () => {
     fetchOpportunities();
   };
 
+  // Clear Search
+  const handleClearSearch = () => {
+    setSearchQuery('');
+    fetchOpportunities({ search: '' });
+  };
+
   // Reset Filters
   const handleResetFilters = () => {
     setSearchQuery('');
@@ -217,9 +237,14 @@ export const FundingOpportunities: React.FC = () => {
     setAreaFilter('All');
     setEligibilityFilter('All');
     setDeadlineFilter('All');
-    setTimeout(() => {
-      fetchOpportunities();
-    }, 0);
+    fetchOpportunities({
+      search: '',
+      fundingType: 'All',
+      status: 'All',
+      researchArea: 'All',
+      eligibility: 'All',
+      deadline: 'All'
+    });
   };
 
   // Open Edit Form
@@ -664,7 +689,7 @@ export const FundingOpportunities: React.FC = () => {
                   <button
                     type="button"
                     className="clear-search-btn"
-                    onClick={() => setSearchQuery('')}
+                    onClick={handleClearSearch}
                     aria-label="Clear search"
                   >
                     <X size={14} />
@@ -787,7 +812,7 @@ export const FundingOpportunities: React.FC = () => {
                   {searchQuery && (
                     <span className="filter-pill-tag">
                       Keyword: "{searchQuery}"
-                      <button type="button" onClick={() => { setSearchQuery(''); setTimeout(fetchOpportunities, 0); }} aria-label="Remove search filter">
+                      <button type="button" onClick={handleClearSearch} aria-label="Remove search filter">
                         <X size={12} />
                       </button>
                     </span>
@@ -1301,7 +1326,7 @@ export const FundingOpportunities: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmitOpportunity} id="form-manage-funding">
+            <form onSubmit={handleSubmitOpportunity} id="form-manage-funding" noValidate>
               {/* Title */}
               <div className="form-group">
                 <label htmlFor="funding-title">
