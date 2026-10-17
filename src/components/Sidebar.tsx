@@ -120,7 +120,7 @@ const Sidebar: React.FC = () => {
               <MessageSquare size={20} /> Messages
             </span>
             {unreadMessagesCount > 0 && (
-              <span className="unread-badge" style={{ background: '#0284c7', color: '#fff', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>
+              <span id="badge-sidebar-unread-messages" className="unread-badge" style={{ background: '#0284c7', color: '#fff', fontSize: '0.75rem', padding: '0.1rem 0.5rem', borderRadius: '10px', fontWeight: 'bold' }}>
                 {unreadMessagesCount}
               </span>
             )}

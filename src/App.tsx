@@ -32,6 +32,7 @@ const App: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
+            <Route path="/home" element={<Navigate to="/profile" replace />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/network" element={<NetworkPage />} />
