@@ -82,14 +82,21 @@ def register_user(role, full_name, email, password):
     }
 
 
-def create_driver():
+def create_driver(position=(0, 0), size=(940, 980)):
     options = webdriver.ChromeOptions()
-    if os.environ.get("HEADLESS", "true").lower() == "true":
+    # Default HEADLESS to false so the user sees the real browser open on screen
+    if os.environ.get("HEADLESS", "false").lower() == "true":
         options.add_argument("--headless=new")
-    options.add_argument("--window-size=1440,960")
+    options.add_argument(f"--window-size={size[0]},{size[1]}")
+    options.add_argument(f"--window-position={position[0]},{position[1]}")
     options.add_argument("--disable-gpu")
     options.add_argument("--no-sandbox")
     driver = webdriver.Chrome(options=options)
+    try:
+        driver.set_window_position(position[0], position[1])
+        driver.set_window_size(size[0], size[1])
+    except Exception:
+        pass
     return driver
 
 
@@ -330,8 +337,9 @@ def test_funding_opportunity_discovery_and_filtering():
     # =========================================================================
     print("\n--- PHASE 3: DUAL-BROWSER SELENIUM UI WORKFLOW TESTING ---")
 
-    driver_alice = create_driver()
-    driver_bob = create_driver()
+    print("\n[INFO] Launching visible Chrome browser windows side-by-side...")
+    driver_alice = create_driver(position=(0, 0), size=(960, 1020))
+    driver_bob = create_driver(position=(960, 0), size=(960, 1020))
     wait_alice = WebDriverWait(driver_alice, 15)
     wait_bob = WebDriverWait(driver_bob, 15)
 
