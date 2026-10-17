@@ -1002,7 +1002,7 @@ export const PublicationManagement: React.FC = () => {
               </div>
             )}
 
-            <form onSubmit={handleSubmitPublication} id="form-manage-publication">
+            <form onSubmit={handleSubmitPublication} id="form-manage-publication" noValidate>
               {/* DOI First with Auto-fill helper */}
               <div className="form-group">
                 <label htmlFor="pub-doi">

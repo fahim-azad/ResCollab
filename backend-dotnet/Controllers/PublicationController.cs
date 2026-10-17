@@ -179,6 +179,10 @@ namespace ResCollab.Api.Controllers
         {
             if (string.IsNullOrWhiteSpace(link)) return null;
             var trimmed = link.Trim();
+            if (trimmed.Contains("://"))
+            {
+                return trimmed;
+            }
             if (!trimmed.StartsWith("http://", StringComparison.OrdinalIgnoreCase) &&
                 !trimmed.StartsWith("https://", StringComparison.OrdinalIgnoreCase))
             {
