@@ -22,6 +22,92 @@ namespace ResCollab.Api.Migrations
 
             SqlServerModelBuilderExtensions.UseIdentityColumns(modelBuilder);
 
+            modelBuilder.Entity("ResCollab.Api.Models.AcademicEvent", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<DateTime?>("EndDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("FieldOfStudy")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<bool>("IsVirtual")
+                        .HasColumnType("bit");
+
+                    b.Property<string>("Location")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("Organizer")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int?>("PostedById")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("RegistrationDeadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RegistrationUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("StartDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime?>("SubmissionDeadline")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("WebsiteUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PostedById");
+
+                    b.ToTable("AcademicEvents");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Bookmark", b =>
                 {
                     b.Property<int>("Id")
@@ -462,6 +548,37 @@ namespace ResCollab.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("Departments");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.EventBookmark", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("EventId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Notes")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("EventId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("EventBookmarks");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.FundingOpportunity", b =>
@@ -1715,6 +1832,16 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("WorkspaceTasks");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.AcademicEvent", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "PostedBy")
+                        .WithMany()
+                        .HasForeignKey("PostedById")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("PostedBy");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Bookmark", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "User")
@@ -1842,6 +1969,25 @@ namespace ResCollab.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("University");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.EventBookmark", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.AcademicEvent", "Event")
+                        .WithMany("Bookmarks")
+                        .HasForeignKey("EventId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Event");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.FundingOpportunity", b =>
@@ -2223,6 +2369,11 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Assignee");
 
                     b.Navigation("Workspace");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.AcademicEvent", b =>
+                {
+                    b.Navigation("Bookmarks");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.CommunityComment", b =>

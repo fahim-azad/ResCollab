@@ -71,6 +71,10 @@ namespace ResCollab.Api.Data
         public DbSet<PostReaction> PostReactions { get; set; }
         public DbSet<PostShare> PostShares { get; set; }
 
+        // Sprint 6 - Academic Events & CFP
+        public DbSet<AcademicEvent> AcademicEvents { get; set; }
+        public DbSet<EventBookmark> EventBookmarks { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -468,6 +472,32 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(s => s.UserId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // AcademicEvent <-> PostedBy (User, optional)
+            modelBuilder.Entity<AcademicEvent>()
+                .HasOne(e => e.PostedBy)
+                .WithMany()
+                .HasForeignKey(e => e.PostedById)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            // EventBookmark <-> Event
+            modelBuilder.Entity<EventBookmark>()
+                .HasOne(b => b.Event)
+                .WithMany(e => e.Bookmarks)
+                .HasForeignKey(b => b.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // EventBookmark <-> User
+            modelBuilder.Entity<EventBookmark>()
+                .HasOne(b => b.User)
+                .WithMany()
+                .HasForeignKey(b => b.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Unique bookmark per user per event
+            modelBuilder.Entity<EventBookmark>()
+                .HasIndex(b => new { b.EventId, b.UserId })
+                .IsUnique();
         }
     }
 }
