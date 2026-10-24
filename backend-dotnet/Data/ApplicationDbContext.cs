@@ -60,6 +60,11 @@ namespace ResCollab.Api.Data
         public DbSet<ResearchAnalyticsSnapshot> ResearchAnalyticsSnapshots { get; set; }
         public DbSet<CollaborationNetworkMetric> CollaborationNetworkMetrics { get; set; }
 
+        // Sprint 6 - AI Recommendations
+        public DbSet<RecommendationPreference> RecommendationPreferences { get; set; }
+        public DbSet<UserRecommendationRecord> UserRecommendationRecords { get; set; }
+        public DbSet<SkillGapAnalysisResult> SkillGapAnalysisResults { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -375,6 +380,27 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(m => m.DepartmentId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // RecommendationPreference <-> User
+            modelBuilder.Entity<RecommendationPreference>()
+                .HasOne(rp => rp.User)
+                .WithMany()
+                .HasForeignKey(rp => rp.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // UserRecommendationRecord <-> User
+            modelBuilder.Entity<UserRecommendationRecord>()
+                .HasOne(ur => ur.User)
+                .WithMany()
+                .HasForeignKey(ur => ur.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // SkillGapAnalysisResult <-> User
+            modelBuilder.Entity<SkillGapAnalysisResult>()
+                .HasOne(sg => sg.User)
+                .WithMany()
+                .HasForeignKey(sg => sg.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

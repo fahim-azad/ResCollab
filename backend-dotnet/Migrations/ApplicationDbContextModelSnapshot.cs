@@ -874,6 +874,44 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("Publications");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.RecommendationPreference", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<double>("ActivityWeight")
+                        .HasColumnType("float");
+
+                    b.Property<string>("EnabledCategories")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<double>("InstitutionWeight")
+                        .HasColumnType("float");
+
+                    b.Property<double>("InterestWeight")
+                        .HasColumnType("float");
+
+                    b.Property<double>("SkillWeight")
+                        .HasColumnType("float");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RecommendationPreferences");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.ResearchAnalyticsSnapshot", b =>
                 {
                     b.Property<int>("Id")
@@ -1026,6 +1064,52 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("ResearchResourceId");
 
                     b.ToTable("ResourceTags");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.SkillGapAnalysisResult", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("AnalyzedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("CurrentSkills")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("MissingSkills")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ReadinessScore")
+                        .HasColumnType("int");
+
+                    b.Property<string>("RecommendedAction")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("TargetDomain")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int?>("TargetProjectId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("SkillGapAnalysisResults");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.University", b =>
@@ -1215,6 +1299,67 @@ namespace ResCollab.Api.Migrations
                         .IsUnique();
 
                     b.ToTable("UserProfiles");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.UserRecommendationRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<DateTime>("GeneratedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("MatchScore")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MatchedTags")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("RecommendationReason")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("Subtitle")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<int>("TargetEntityId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserRecommendationRecords");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.Workspace", b =>
@@ -1646,6 +1791,17 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Owner");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.RecommendationPreference", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "Creator")
@@ -1666,6 +1822,17 @@ namespace ResCollab.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("ResearchResource");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.SkillGapAnalysisResult", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.UserConnection", b =>
@@ -1711,6 +1878,17 @@ namespace ResCollab.Api.Migrations
                     b.HasOne("ResCollab.Api.Models.User", "User")
                         .WithOne("Profile")
                         .HasForeignKey("ResCollab.Api.Models.UserProfile", "UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.UserRecommendationRecord", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
