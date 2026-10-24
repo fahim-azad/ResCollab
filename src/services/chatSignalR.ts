@@ -194,7 +194,16 @@ class ChatSignalRService {
       this.connection?.off('ConversationUpdated', callback);
     };
   }
+
+  public onReceiveNotification(callback: (notification: any) => void): () => void {
+    if (!this.connection) return () => {};
+    this.connection.on('ReceiveNotification', callback);
+    return () => {
+      this.connection?.off('ReceiveNotification', callback);
+    };
+  }
 }
 
 export const chatSignalR = new ChatSignalRService();
 export default chatSignalR;
+

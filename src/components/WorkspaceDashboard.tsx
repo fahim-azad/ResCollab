@@ -26,6 +26,7 @@ const WorkspaceDashboard: React.FC = () => {
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceDto | null>(null);
   const [activeTab, setActiveTab] = useState<'members' | 'tasks' | 'files'>('members');
   const [members, setMembers] = useState<MemberDto[]>([]);
+  const [connections, setConnections] = useState<{ id: number; name: string }[]>([]);
   
   const [loading, setLoading] = useState(true);
   const [newUserId, setNewUserId] = useState('');
@@ -36,7 +37,30 @@ const WorkspaceDashboard: React.FC = () => {
 
   useEffect(() => {
     fetchWorkspaces();
+    fetchConnections();
   }, []);
+
+  const fetchConnections = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return;
+      const res = await fetch('http://localhost:5000/api/network/connections', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        const accepted = data
+          .filter((c: any) => c.status === 'Accepted')
+          .map((c: any) => ({
+            id: c.isRequester ? c.targetId : c.requesterId,
+            name: c.isRequester ? c.targetName : c.requesterName
+          }));
+        setConnections(accepted);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   const fetchWorkspaces = async () => {
     setLoading(true);
@@ -177,20 +201,39 @@ const WorkspaceDashboard: React.FC = () => {
           {activeTab === 'members' && (
             <>
               {selectedWorkspace.role === 'Admin' && (
-                <form className="add-member-form" onSubmit={handleAddMember}>
-                  <div className="form-group" style={{ margin: 0, flexGrow: 1 }}>
-                    <label>Add User ID to Workspace</label>
-                    <input 
-                      type="number" 
-                      className="neo-input" 
-                      placeholder="e.g. 2" 
-                      required 
-                      value={newUserId} 
-                      onChange={e => setNewUserId(e.target.value)} 
-                    />
+                <form className="add-member-form" onSubmit={handleAddMember} style={{ display: 'flex', alignItems: 'flex-end', gap: '0.8rem', flexWrap: 'wrap' }}>
+                  <div className="form-group" style={{ margin: 0, flexGrow: 1, minWidth: '220px' }}>
+                    <label>Add Teammate / Connection to Workspace</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      {connections.length > 0 && (
+                        <select 
+                          className="neo-input" 
+                          style={{ flex: 1, minWidth: '180px' }}
+                          value={newUserId} 
+                          onChange={e => setNewUserId(e.target.value)}
+                        >
+                          <option value="">-- Choose from your connections --</option>
+                          {connections
+                            .filter(c => !members.some(m => m.userId === c.id))
+                            .map(c => (
+                              <option key={c.id} value={c.id}>{c.name} (ID: {c.id})</option>
+                            ))
+                          }
+                        </select>
+                      )}
+                      <input 
+                        type="number" 
+                        className="neo-input" 
+                        style={{ width: '120px' }}
+                        placeholder="Or User ID" 
+                        required 
+                        value={newUserId} 
+                        onChange={e => setNewUserId(e.target.value)} 
+                      />
+                    </div>
                   </div>
-                  <button type="submit" className="create-btn" style={{ background: 'var(--brand-mint)', color: 'var(--brand-navy)' }}>
-                    Add Member
+                  <button type="submit" className="create-btn" style={{ background: 'var(--brand-mint)', color: 'var(--brand-navy)', height: '42px', whiteSpace: 'nowrap' }}>
+                    Add Teammate
                   </button>
                 </form>
               )}

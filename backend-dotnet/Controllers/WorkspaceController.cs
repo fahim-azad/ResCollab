@@ -7,6 +7,8 @@ using ResCollab.Api.Data;
 using ResCollab.Api.Models;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.SignalR;
+using ResCollab.Api.Hubs;
 using System;
 
 namespace ResCollab.Api.Controllers
@@ -17,10 +19,12 @@ namespace ResCollab.Api.Controllers
     public class WorkspaceController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHubContext<ChatHub> _hubContext;
 
-        public WorkspaceController(ApplicationDbContext context)
+        public WorkspaceController(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
         public class CreateWorkspaceRequest
@@ -125,7 +129,42 @@ namespace ResCollab.Api.Controllers
             };
 
             _context.WorkspaceMembers.Add(newMember);
+
+            // Send notification to the newly added member
+            var workspace = await _context.Workspaces.FindAsync(id);
+            var inviter = await _context.Users.FindAsync(currentUserId);
+            var inviterName = inviter?.FullName ?? "A team lead";
+            var workspaceName = workspace?.Name ?? "Research Workspace";
+
+            var notification = new Notification
+            {
+                UserId = req.UserId,
+                Title = "Added to Workspace",
+                Message = $"{inviterName} added you to the workspace \"{workspaceName}\" as {req.Role}.",
+                Type = "Workspace",
+                RelatedEntityId = id,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(notification);
+
             await _context.SaveChangesAsync();
+
+            try
+            {
+                await _hubContext.Clients.Group($"user_{req.UserId}").SendAsync("ReceiveNotification", new
+                {
+                    id = notification.Id,
+                    userId = notification.UserId,
+                    title = notification.Title,
+                    message = notification.Message,
+                    type = notification.Type,
+                    relatedEntityId = notification.RelatedEntityId,
+                    isRead = notification.IsRead,
+                    createdAt = notification.CreatedAt
+                });
+            }
+            catch {}
 
             return Ok(new { message = "Member added successfully" });
         }

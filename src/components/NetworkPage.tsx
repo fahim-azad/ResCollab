@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Check, X, User, UserMinus } from 'lucide-react';
+import chatSignalR from '../services/chatSignalR';
 import './NetworkPage.css';
 
 interface ConnectionDto {
@@ -46,6 +47,16 @@ const NetworkPage: React.FC = () => {
 
   useEffect(() => {
     fetchData();
+
+    const unsubNotif = chatSignalR.onReceiveNotification(() => {
+      fetchData();
+    });
+
+    const interval = setInterval(fetchData, 4000);
+    return () => {
+      clearInterval(interval);
+      unsubNotif();
+    };
   }, []);
 
   const handleAccept = async (id: number) => {

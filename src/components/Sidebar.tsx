@@ -4,6 +4,8 @@ import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, 
 import logo from '../assets/ResCollab-logo.png';
 import './DashboardLayout.css';
 
+import chatSignalR from '../services/chatSignalR';
+
 const Sidebar: React.FC = () => {
   const navigate = useNavigate();
   const [unreadCount, setUnreadCount] = useState(0);
@@ -35,9 +37,17 @@ const Sidebar: React.FC = () => {
     };
     fetchUnread();
     
-    // Poll every 30s
-    const interval = setInterval(fetchUnread, 30000);
-    return () => clearInterval(interval);
+    // Connect SignalR notification listener
+    const unsubNotif = chatSignalR.onReceiveNotification(() => {
+      fetchUnread();
+    });
+
+    // Poll every 4 seconds for responsive badge feedback
+    const interval = setInterval(fetchUnread, 4000);
+    return () => {
+      clearInterval(interval);
+      unsubNotif();
+    };
   }, []);
 
   const handleLogout = () => {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Bell, Check, CheckCircle, Clock } from 'lucide-react';
+import chatSignalR from '../services/chatSignalR';
 import './NotificationsPage.css';
 
 interface NotificationDto {
@@ -34,6 +35,16 @@ const NotificationsPage: React.FC = () => {
 
   useEffect(() => {
     fetchNotifications();
+
+    const unsubNotif = chatSignalR.onReceiveNotification(() => {
+      fetchNotifications();
+    });
+
+    const interval = setInterval(fetchNotifications, 4000);
+    return () => {
+      clearInterval(interval);
+      unsubNotif();
+    };
   }, []);
 
   const handleMarkAsRead = async (id: number) => {

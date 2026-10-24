@@ -1,10 +1,13 @@
+using System;
 using System.Linq;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.SignalR;
 using Microsoft.EntityFrameworkCore;
 using ResCollab.Api.Data;
+using ResCollab.Api.Hubs;
 using ResCollab.Api.Models;
 
 namespace ResCollab.Api.Controllers
@@ -15,10 +18,12 @@ namespace ResCollab.Api.Controllers
     public class NetworkController : ControllerBase
     {
         private readonly ApplicationDbContext _context;
+        private readonly IHubContext<ChatHub> _hubContext;
 
-        public NetworkController(ApplicationDbContext context)
+        public NetworkController(ApplicationDbContext context, IHubContext<ChatHub> hubContext)
         {
             _context = context;
+            _hubContext = hubContext;
         }
 
         private int GetUserId()
@@ -26,6 +31,28 @@ namespace ResCollab.Api.Controllers
             var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             if (int.TryParse(userIdStr, out int userId)) return userId;
             return -1;
+        }
+
+        private async Task SendRealtimeNotification(Notification notification)
+        {
+            try
+            {
+                await _hubContext.Clients.Group($"user_{notification.UserId}").SendAsync("ReceiveNotification", new
+                {
+                    id = notification.Id,
+                    userId = notification.UserId,
+                    title = notification.Title,
+                    message = notification.Message,
+                    type = notification.Type,
+                    relatedEntityId = notification.RelatedEntityId,
+                    isRead = notification.IsRead,
+                    createdAt = notification.CreatedAt
+                });
+            }
+            catch
+            {
+                // SignalR failure should not block HTTP response
+            }
         }
 
         // --- FOLLOW API ---
@@ -36,12 +63,34 @@ namespace ResCollab.Api.Controllers
             var userId = GetUserId();
             if (userId == targetUserId) return BadRequest("Cannot follow yourself.");
 
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null) return NotFound("Target user not found.");
+
             var exists = await _context.UserFollows.AnyAsync(f => f.FollowerId == userId && f.FollowedId == targetUserId);
             if (exists) return BadRequest("Already following this user.");
 
             var follow = new UserFollow { FollowerId = userId, FollowedId = targetUserId };
             _context.UserFollows.Add(follow);
+
+            // Generate notification for followed user
+            var sender = await _context.Users.FindAsync(userId);
+            var senderName = sender?.FullName ?? "A researcher";
+
+            var notification = new Notification
+            {
+                UserId = targetUserId,
+                Title = "New Follower",
+                Message = $"{senderName} started following your research profile.",
+                Type = "Follow",
+                RelatedEntityId = userId,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(notification);
+
             await _context.SaveChangesAsync();
+
+            await SendRealtimeNotification(notification);
 
             return Ok(new { message = "Followed successfully" });
         }
@@ -89,6 +138,9 @@ namespace ResCollab.Api.Controllers
             var userId = GetUserId();
             if (userId == targetUserId) return BadRequest("Cannot connect with yourself.");
 
+            var targetUser = await _context.Users.FindAsync(targetUserId);
+            if (targetUser == null) return NotFound("Target user not found.");
+
             var existing = await _context.UserConnections
                 .FirstOrDefaultAsync(c => 
                     (c.RequesterId == userId && c.TargetId == targetUserId) || 
@@ -98,7 +150,26 @@ namespace ResCollab.Api.Controllers
 
             var connection = new UserConnection { RequesterId = userId, TargetId = targetUserId, Status = "Pending" };
             _context.UserConnections.Add(connection);
+
+            // Generate notification for target user
+            var sender = await _context.Users.FindAsync(userId);
+            var senderName = sender?.FullName ?? "A researcher";
+
+            var notification = new Notification
+            {
+                UserId = targetUserId,
+                Title = "New Connection Request",
+                Message = $"{senderName} sent you a connection request.",
+                Type = "Connection",
+                RelatedEntityId = userId,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(notification);
+
             await _context.SaveChangesAsync();
+
+            await SendRealtimeNotification(notification);
 
             return Ok(new { message = "Connection request sent" });
         }
@@ -114,7 +185,26 @@ namespace ResCollab.Api.Controllers
 
             connection.Status = "Accepted";
             connection.UpdatedAt = System.DateTime.UtcNow;
+
+            // Generate notification for requester that request was accepted
+            var currentUser = await _context.Users.FindAsync(userId);
+            var currentUserName = currentUser?.FullName ?? "A researcher";
+
+            var notification = new Notification
+            {
+                UserId = requesterId,
+                Title = "Connection Accepted",
+                Message = $"{currentUserName} accepted your connection request.",
+                Type = "Connection",
+                RelatedEntityId = userId,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(notification);
+
             await _context.SaveChangesAsync();
+
+            await SendRealtimeNotification(notification);
 
             return Ok(new { message = "Connection accepted" });
         }
@@ -130,7 +220,26 @@ namespace ResCollab.Api.Controllers
 
             connection.Status = "Rejected";
             connection.UpdatedAt = System.DateTime.UtcNow;
+
+            // Generate notification for requester that request was declined
+            var currentUser = await _context.Users.FindAsync(userId);
+            var currentUserName = currentUser?.FullName ?? "A researcher";
+
+            var notification = new Notification
+            {
+                UserId = requesterId,
+                Title = "Connection Declined",
+                Message = $"{currentUserName} declined your connection request.",
+                Type = "Connection",
+                RelatedEntityId = userId,
+                IsRead = false,
+                CreatedAt = DateTime.UtcNow
+            };
+            _context.Notifications.Add(notification);
+
             await _context.SaveChangesAsync();
+
+            await SendRealtimeNotification(notification);
 
             return Ok(new { message = "Connection rejected" });
         }
