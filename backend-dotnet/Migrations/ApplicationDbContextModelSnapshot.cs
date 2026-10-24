@@ -503,6 +503,38 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("ConversationParticipants");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.DashboardWidgetPreference", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("DisplayOrder")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsVisible")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("WidgetKey")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("DashboardWidgetPreferences");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Department", b =>
                 {
                     b.Property<int>("Id")
@@ -960,6 +992,45 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("SupervisorId");
 
                     b.ToTable("OpenProjects");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.PersonalizedActivityLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActivityType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Description")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("TargetUrl")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("PersonalizedActivityLogs");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.PostReaction", b =>
@@ -1960,6 +2031,17 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.DashboardWidgetPreference", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Department", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.University", "University")
@@ -2104,6 +2186,17 @@ namespace ResCollab.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("Supervisor");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.PersonalizedActivityLog", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.PostReaction", b =>

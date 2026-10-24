@@ -75,6 +75,10 @@ namespace ResCollab.Api.Data
         public DbSet<AcademicEvent> AcademicEvents { get; set; }
         public DbSet<EventBookmark> EventBookmarks { get; set; }
 
+        // Sprint 6 - Personalized Dashboard
+        public DbSet<DashboardWidgetPreference> DashboardWidgetPreferences { get; set; }
+        public DbSet<PersonalizedActivityLog> PersonalizedActivityLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -498,6 +502,20 @@ namespace ResCollab.Api.Data
             modelBuilder.Entity<EventBookmark>()
                 .HasIndex(b => new { b.EventId, b.UserId })
                 .IsUnique();
+
+            // DashboardWidgetPreference <-> User
+            modelBuilder.Entity<DashboardWidgetPreference>()
+                .HasOne(p => p.User)
+                .WithMany()
+                .HasForeignKey(p => p.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // PersonalizedActivityLog <-> User
+            modelBuilder.Entity<PersonalizedActivityLog>()
+                .HasOne(a => a.User)
+                .WithMany()
+                .HasForeignKey(a => a.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }
