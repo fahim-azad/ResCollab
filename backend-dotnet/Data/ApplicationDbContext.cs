@@ -55,6 +55,11 @@ namespace ResCollab.Api.Data
         // Sprint 5 - Research Funding
         public DbSet<FundingOpportunity> FundingOpportunities { get; set; }
 
+        // Sprint 6 - Institutional Analytics
+        public DbSet<InstitutionalMetric> InstitutionalMetrics { get; set; }
+        public DbSet<ResearchAnalyticsSnapshot> ResearchAnalyticsSnapshots { get; set; }
+        public DbSet<CollaborationNetworkMetric> CollaborationNetworkMetrics { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -356,6 +361,20 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(f => f.PostedById)
                 .OnDelete(DeleteBehavior.SetNull);
+
+            // InstitutionalMetric <-> University
+            modelBuilder.Entity<InstitutionalMetric>()
+                .HasOne(m => m.Institution)
+                .WithMany()
+                .HasForeignKey(m => m.InstitutionId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // InstitutionalMetric <-> Department
+            modelBuilder.Entity<InstitutionalMetric>()
+                .HasOne(m => m.Department)
+                .WithMany()
+                .HasForeignKey(m => m.DepartmentId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }

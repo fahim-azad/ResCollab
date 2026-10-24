@@ -94,6 +94,49 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("ChatMessages");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.CollaborationNetworkMetric", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActiveCoAuthors")
+                        .HasColumnType("int");
+
+                    b.Property<int>("JointProjectsCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("JointPublicationsCount")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LastCalculated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("SourceDepartment")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("SourceInstitution")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TargetDepartment")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("TargetInstitution")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("CollaborationNetworkMetrics");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.CollaborationOpportunity", b =>
                 {
                     b.Property<int>("Id")
@@ -419,6 +462,60 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("IdeaId");
 
                     b.ToTable("IdeaApplications");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.InstitutionalMetric", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Category")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("DepartmentId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("InstitutionId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("MetadataJson")
+                        .HasMaxLength(4000)
+                        .HasColumnType("nvarchar(4000)");
+
+                    b.Property<string>("MetricType")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("nvarchar(150)");
+
+                    b.Property<double>("MetricValue")
+                        .HasColumnType("float");
+
+                    b.Property<string>("Period")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int?>("PeriodMonth")
+                        .HasColumnType("int");
+
+                    b.Property<int>("PeriodYear")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("RecordedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DepartmentId");
+
+                    b.HasIndex("InstitutionId");
+
+                    b.ToTable("InstitutionalMetrics");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
@@ -775,6 +872,56 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("OwnerId");
 
                     b.ToTable("Publications");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ResearchAnalyticsSnapshot", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("ActiveCollaborations")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompletedTasks")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ExternalPartnerships")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("LastCalculated")
+                        .HasColumnType("datetime2");
+
+                    b.Property<double>("ProgressPercentage")
+                        .HasColumnType("float");
+
+                    b.Property<int>("ScopeId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ScopeName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ScopeType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("TotalProjects")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalPublications")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TotalTasks")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ResearchAnalyticsSnapshots");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>
@@ -1370,6 +1517,23 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Applicant");
 
                     b.Navigation("Idea");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.InstitutionalMetric", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.Department", "Department")
+                        .WithMany()
+                        .HasForeignKey("DepartmentId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ResCollab.Api.Models.University", "Institution")
+                        .WithMany()
+                        .HasForeignKey("InstitutionId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Department");
+
+                    b.Navigation("Institution");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
