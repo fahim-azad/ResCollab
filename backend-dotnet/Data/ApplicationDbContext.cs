@@ -65,6 +65,12 @@ namespace ResCollab.Api.Data
         public DbSet<UserRecommendationRecord> UserRecommendationRecords { get; set; }
         public DbSet<SkillGapAnalysisResult> SkillGapAnalysisResults { get; set; }
 
+        // Sprint 6 - Community Discussions
+        public DbSet<CommunityPost> CommunityPosts { get; set; }
+        public DbSet<CommunityComment> CommunityComments { get; set; }
+        public DbSet<PostReaction> PostReactions { get; set; }
+        public DbSet<PostShare> PostShares { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -401,6 +407,67 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(sg => sg.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // CommunityPost <-> Author (User)
+            modelBuilder.Entity<CommunityPost>()
+                .HasOne(p => p.Author)
+                .WithMany()
+                .HasForeignKey(p => p.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // CommunityComment <-> Post
+            modelBuilder.Entity<CommunityComment>()
+                .HasOne(c => c.Post)
+                .WithMany(p => p.Comments)
+                .HasForeignKey(c => c.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // CommunityComment <-> Author (User)
+            modelBuilder.Entity<CommunityComment>()
+                .HasOne(c => c.Author)
+                .WithMany()
+                .HasForeignKey(c => c.AuthorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // CommunityComment <-> ParentComment (Reply hierarchy)
+            modelBuilder.Entity<CommunityComment>()
+                .HasOne(c => c.ParentComment)
+                .WithMany(c => c.Replies)
+                .HasForeignKey(c => c.ParentCommentId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // PostReaction <-> Post
+            modelBuilder.Entity<PostReaction>()
+                .HasOne(r => r.Post)
+                .WithMany(p => p.Reactions)
+                .HasForeignKey(r => r.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // PostReaction <-> User
+            modelBuilder.Entity<PostReaction>()
+                .HasOne(r => r.User)
+                .WithMany()
+                .HasForeignKey(r => r.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique reaction per user per post
+            modelBuilder.Entity<PostReaction>()
+                .HasIndex(r => new { r.PostId, r.UserId })
+                .IsUnique();
+
+            // PostShare <-> Post
+            modelBuilder.Entity<PostShare>()
+                .HasOne(s => s.Post)
+                .WithMany(p => p.Shares)
+                .HasForeignKey(s => s.PostId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // PostShare <-> User
+            modelBuilder.Entity<PostShare>()
+                .HasOne(s => s.User)
+                .WithMany()
+                .HasForeignKey(s => s.UserId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
