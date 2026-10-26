@@ -240,6 +240,171 @@ namespace ResCollab.Api.Data
                 context.FundingOpportunities.AddRange(opp1, opp2, opp3, opp4, opp5);
                 await context.SaveChangesAsync();
             }
+
+            // Sprint 6 - Academic Events & CFP Discovery Seeding
+            bool hasEvents = await context.AcademicEvents.AnyAsync();
+            if (!hasEvents)
+            {
+                var alan = await context.Users.FirstOrDefaultAsync(u => u.Email == "alan@mit.edu");
+                int? postedById = alan?.Id;
+
+                var ev1 = new AcademicEvent
+                {
+                    Title = "IEEE International Conference on Computer Vision (ICCV 2027)",
+                    Organizer = "IEEE Computer Society & CVF",
+                    EventType = "Conference",
+                    Description = "The premier international computer vision event comprising the main conference and several co-located workshops and tutorials. Papers are invited covering generative modeling, 3D perception, multi-modal representation, and robotics vision.",
+                    FieldOfStudy = "Computer Vision & Artificial Intelligence",
+                    Location = "Venice Convention Center, Venice, Italy",
+                    IsVirtual = false,
+                    StartDate = DateTime.UtcNow.AddDays(90),
+                    EndDate = DateTime.UtcNow.AddDays(95),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(25),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(60),
+                    WebsiteUrl = "https://iccv2027.thecvf.com",
+                    RegistrationUrl = "https://iccv2027.thecvf.com/registration",
+                    Source = "IEEE Conference Portal",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev2 = new AcademicEvent
+                {
+                    Title = "NeurIPS 2026: Conference on Neural Information Processing Systems",
+                    Organizer = "NeurIPS Foundation",
+                    EventType = "Conference",
+                    Description = "A top-tier multidisciplinary conference fostering the exchange of research on neural information processing systems in their biological, technological, mathematical, and cognitive aspects.",
+                    FieldOfStudy = "Machine Learning & Deep Learning",
+                    Location = "Vancouver Convention Centre, Vancouver, Canada",
+                    IsVirtual = true,
+                    StartDate = DateTime.UtcNow.AddDays(70),
+                    EndDate = DateTime.UtcNow.AddDays(76),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(14),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(45),
+                    WebsiteUrl = "https://neurips.cc",
+                    RegistrationUrl = "https://neurips.cc/Register",
+                    Source = "NeurIPS Ingestion",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev3 = new AcademicEvent
+                {
+                    Title = "ACM SIGKDD Conference on Knowledge Discovery and Data Mining",
+                    Organizer = "ACM SIGKDD",
+                    EventType = "Conference",
+                    Description = "The premier interdisciplinary conference bringing together researchers and practitioners from data science, data mining, large language models, knowledge graphs, and big data systems.",
+                    FieldOfStudy = "Data Science & Big Data",
+                    Location = "Suntec Singapore Convention & Exhibition Centre, Singapore",
+                    IsVirtual = false,
+                    StartDate = DateTime.UtcNow.AddDays(110),
+                    EndDate = DateTime.UtcNow.AddDays(115),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(40),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(80),
+                    WebsiteUrl = "https://kdd.org/kdd2026",
+                    RegistrationUrl = "https://kdd.org/kdd2026/registration",
+                    Source = "ACM Digital Library",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev4 = new AcademicEvent
+                {
+                    Title = "Nature Symposium on Computational Biology & Genomic Medicine",
+                    Organizer = "Nature Portfolio & Harvard Medical School",
+                    EventType = "Symposium",
+                    Description = "Highlighting breakthroughs at the intersection of AI foundation models, structural biology, gene editing, and precision oncology therapeutics.",
+                    FieldOfStudy = "Biomedical & Healthcare",
+                    Location = "Joseph B. Martin Conference Center, Boston, MA, USA",
+                    IsVirtual = true,
+                    StartDate = DateTime.UtcNow.AddDays(45),
+                    EndDate = DateTime.UtcNow.AddDays(47),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(6),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(30),
+                    WebsiteUrl = "https://nature.com/events/genomics-2026",
+                    RegistrationUrl = "https://nature.com/events/genomics-2026/register",
+                    Source = "Nature Academic Events",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev5 = new AcademicEvent
+                {
+                    Title = "International Workshop on Quantum Systems and Algorithms (IWQSA)",
+                    Organizer = "IEEE Quantum Initiative",
+                    EventType = "Workshop",
+                    Description = "Focused on quantum error correction, fault-tolerant quantum algorithms, NISQ-era optimization, and quantum chemistry simulations.",
+                    FieldOfStudy = "Quantum Computing",
+                    Location = "ETH Zurich, Zurich, Switzerland",
+                    IsVirtual = true,
+                    StartDate = DateTime.UtcNow.AddDays(65),
+                    EndDate = DateTime.UtcNow.AddDays(67),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(18),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(50),
+                    WebsiteUrl = "https://quantum.ieee.org/events/iwqsa2026",
+                    RegistrationUrl = "https://quantum.ieee.org/events/iwqsa2026/tickets",
+                    Source = "WikiCFP Ingestion",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev6 = new AcademicEvent
+                {
+                    Title = "Global Seminar on Ethical AI Governance and Algorithmic Auditing",
+                    Organizer = "Oxford Internet Institute & Stanford HAI",
+                    EventType = "Seminar",
+                    Description = "Discussion forum on international regulatory standards, bias mitigation benchmarks, copyright in foundation models, and explainable AI in public institutions.",
+                    FieldOfStudy = "AI Ethics & Public Policy",
+                    Location = "Oxford, UK & Global Virtual Stream",
+                    IsVirtual = true,
+                    StartDate = DateTime.UtcNow.AddDays(15),
+                    EndDate = DateTime.UtcNow.AddDays(16),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(3),
+                    RegistrationDeadline = DateTime.UtcNow.AddDays(10),
+                    WebsiteUrl = "https://oii.ox.ac.uk/events/ethical-ai-2026",
+                    RegistrationUrl = "https://oii.ox.ac.uk/events/ethical-ai-2026/rsvp",
+                    Source = "Manual Submission",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var ev7 = new AcademicEvent
+                {
+                    Title = "Call for Papers: IEEE TPAMI Special Issue on Multimodal Foundation Models",
+                    Organizer = "IEEE Computer Society",
+                    EventType = "CallForPapers",
+                    Description = "Call for original contributions addressing cross-modal alignment, vision-language-action models, video generation, and robust benchmark evaluations.",
+                    FieldOfStudy = "Computer Vision & Artificial Intelligence",
+                    Location = "Special Issue Journal Publication",
+                    IsVirtual = true,
+                    StartDate = DateTime.UtcNow.AddDays(20),
+                    EndDate = DateTime.UtcNow.AddDays(180),
+                    SubmissionDeadline = DateTime.UtcNow.AddDays(21),
+                    RegistrationDeadline = null,
+                    WebsiteUrl = "https://computer.org/tpami/cfp-multimodal",
+                    RegistrationUrl = "https://mc.manuscriptcentral.com/tpami-cs",
+                    Source = "IEEE TPAMI CFP Board",
+                    Status = "Upcoming",
+                    PostedById = postedById,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                context.AcademicEvents.AddRange(ev1, ev2, ev3, ev4, ev5, ev6, ev7);
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
