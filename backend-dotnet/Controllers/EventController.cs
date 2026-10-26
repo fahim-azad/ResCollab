@@ -595,7 +595,7 @@ namespace ResCollab.Api.Controllers
                     _ => "normal"
                 };
 
-                return new UpcomingDeadlineDto
+                return new AcademicEventDeadlineDto
                 {
                     EventId = e.Id,
                     Title = e.Title,
@@ -787,7 +787,7 @@ namespace ResCollab.Api.Controllers
         public int TotalPages { get; set; }
     }
 
-    public class UpcomingDeadlineDto
+    public class AcademicEventDeadlineDto
     {
         public int EventId { get; set; }
         public string Title { get; set; } = string.Empty;
