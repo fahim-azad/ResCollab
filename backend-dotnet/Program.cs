@@ -73,6 +73,9 @@ builder.Services.AddScoped<IResearchConnector, CrossrefConnector>();
 // Add Access Control Service
 builder.Services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
 
+// Add AI Matching & Recommendations Service
+builder.Services.AddScoped<IAiMatchingService, AiMatchingService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

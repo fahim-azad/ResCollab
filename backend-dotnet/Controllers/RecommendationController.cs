@@ -1,13 +1,10 @@
-using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Collections.Generic;
-using ResCollab.Api.Data;
-using ResCollab.Api.Models;
-using System.Security.Claims;
-using Microsoft.AspNetCore.Authorization;
 using System;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using ResCollab.Api.Models;
+using ResCollab.Api.Services;
 
 namespace ResCollab.Api.Controllers
 {
@@ -16,218 +13,157 @@ namespace ResCollab.Api.Controllers
     [Authorize]
     public class RecommendationController : ControllerBase
     {
-        private readonly ApplicationDbContext _context;
+        private readonly IAiMatchingService _matchingService;
 
-        public RecommendationController(ApplicationDbContext context)
+        public RecommendationController(IAiMatchingService matchingService)
         {
-            _context = context;
+            _matchingService = matchingService;
         }
 
-        public class SupervisorRecommendationDto
+        private int GetCurrentUserId()
         {
-            public int UserId { get; set; }
-            public string FullName { get; set; } = string.Empty;
-            public string? Department { get; set; }
-            public string? University { get; set; }
-            public List<string> MatchedInterests { get; set; } = new List<string>();
-            public int MatchScore { get; set; }
-            public string? Bio { get; set; }
+            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            if (int.TryParse(userIdStr, out int userId)) return userId;
+            return -1;
         }
 
+        // =========================================================================
+        // 1. ALL RECOMMENDATIONS (UNIFIED HUB)
+        // GET /api/recommendation/all?forceRefresh=false
+        // =========================================================================
+        [HttpGet("all")]
+        public async Task<IActionResult> GetAllRecommendations([FromQuery] bool forceRefresh = false)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var result = await _matchingService.GetAllRecommendationsAsync(userId, forceRefresh);
+            return Ok(result);
+        }
+
+        // =========================================================================
+        // 2. SUPERVISOR RECOMMENDATIONS
+        // GET /api/recommendation/supervisors
+        // =========================================================================
         [HttpGet("supervisors")]
         public async Task<IActionResult> GetSupervisors()
         {
-            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            var studentUser = await _context.Users
-                .Include(u => u.Profile)
-                .FirstOrDefaultAsync(u => u.Id == userId);
-
-            if (studentUser == null || studentUser.Profile == null)
-            {
-                return NotFound("Student profile not found.");
-            }
-
-            var studentProfile = studentUser.Profile;
-
-            // Fetch all supervisors that are accepting students
-            var supervisors = await _context.Users
-                .Include(u => u.Profile)
-                .Where(u => u.Id != userId && (u.Role == "Supervisor" || u.Role == "Faculty"))
-                .Where(u => u.Profile != null && u.Profile.IsAcceptingStudents)
-                .ToListAsync();
-
-            var recommendations = new List<SupervisorRecommendationDto>();
-
-            var studentInterests = string.IsNullOrWhiteSpace(studentProfile.Interests) 
-                ? new List<string>() 
-                : studentProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
-
-            foreach (var sup in supervisors)
-            {
-                var supProfile = sup.Profile!;
-                int score = 0;
-                var matchedInterests = new List<string>();
-
-                // Rule 1: Interests match (+10 points per keyword)
-                if (!string.IsNullOrWhiteSpace(supProfile.Interests))
-                {
-                    var supInterests = supProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
-                    foreach (var sInt in studentInterests)
-                    {
-                        if (supInterests.Contains(sInt) && !string.IsNullOrWhiteSpace(sInt))
-                        {
-                            score += 10;
-                            matchedInterests.Add(sInt);
-                        }
-                    }
-                }
-
-                // Rule 2: Department match (+5 points)
-                if (!string.IsNullOrWhiteSpace(studentProfile.Department) && 
-                    studentProfile.Department.Equals(supProfile.Department, StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 5;
-                }
-
-                // Rule 3: University match (+2 points)
-                if (!string.IsNullOrWhiteSpace(studentProfile.University) && 
-                    studentProfile.University.Equals(supProfile.University, StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 2;
-                }
-
-                recommendations.Add(new SupervisorRecommendationDto
-                {
-                    UserId = sup.Id,
-                    FullName = sup.FullName,
-                    Department = supProfile.Department,
-                    University = supProfile.University,
-                    MatchedInterests = matchedInterests,
-                    MatchScore = score,
-                    Bio = supProfile.Bio
-                });
-            }
-
-            // Sort by highest score first
-            var sortedRecommendations = recommendations.OrderByDescending(r => r.MatchScore).ToList();
-            
-            // Filter to only those with Score > 0 for better relevance
-            var filtered = sortedRecommendations.Where(r => r.MatchScore > 0).ToList();
-
-            // If empty (e.g. blank student profile or zero matches), return up to 10 fallback supervisors
-            if (!filtered.Any())
-            {
-                filtered = sortedRecommendations.Take(10).ToList();
-            }
-
-            return Ok(filtered);
+            var supervisors = await _matchingService.GetSupervisorRecommendationsAsync(userId);
+            return Ok(supervisors);
         }
 
-        public class TeammateRecommendationDto
-        {
-            public int UserId { get; set; }
-            public string FullName { get; set; } = string.Empty;
-            public string? Department { get; set; }
-            public string? University { get; set; }
-            public List<string> MatchedInterests { get; set; } = new List<string>();
-            public List<string> Skills { get; set; } = new List<string>();
-            public int MatchScore { get; set; }
-            public string? Bio { get; set; }
-        }
-
+        // =========================================================================
+        // 3. TEAMMATE RECOMMENDATIONS
+        // GET /api/recommendation/teammates
+        // =========================================================================
         [HttpGet("teammates")]
         public async Task<IActionResult> GetTeammates()
         {
-            var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
-            if (!int.TryParse(userIdStr, out int userId)) return Unauthorized();
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            var currentUser = await _context.Users
-                .Include(u => u.Profile)
-                .FirstOrDefaultAsync(u => u.Id == userId);
+            var teammates = await _matchingService.GetTeammateRecommendationsAsync(userId);
+            return Ok(teammates);
+        }
 
-            if (currentUser == null || currentUser.Profile == null)
-            {
-                return NotFound("Profile not found.");
-            }
+        // =========================================================================
+        // 4. RESEARCHER / COLLABORATOR RECOMMENDATIONS
+        // GET /api/recommendation/researchers
+        // =========================================================================
+        [HttpGet("researchers")]
+        public async Task<IActionResult> GetResearchers()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            var currentProfile = currentUser.Profile;
+            var researchers = await _matchingService.GetResearcherRecommendationsAsync(userId);
+            return Ok(researchers);
+        }
 
-            // Fetch all other students
-            var students = await _context.Users
-                .Include(u => u.Profile)
-                .Where(u => u.Id != userId && u.Role == "Student")
-                .Where(u => u.Profile != null)
-                .ToListAsync();
+        // =========================================================================
+        // 5. PUBLICATION & PAPER RECOMMENDATIONS
+        // GET /api/recommendation/papers
+        // =========================================================================
+        [HttpGet("papers")]
+        public async Task<IActionResult> GetPapers()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            var recommendations = new List<TeammateRecommendationDto>();
+            var papers = await _matchingService.GetPaperRecommendationsAsync(userId);
+            return Ok(papers);
+        }
 
-            var currentInterests = string.IsNullOrWhiteSpace(currentProfile.Interests) 
-                ? new List<string>() 
-                : currentProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
+        // =========================================================================
+        // 6. OPEN PROJECT RECOMMENDATIONS
+        // GET /api/recommendation/projects
+        // =========================================================================
+        [HttpGet("projects")]
+        public async Task<IActionResult> GetProjects()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            foreach (var student in students)
-            {
-                var studentProfile = student.Profile!;
-                int score = 0;
-                var matchedInterests = new List<string>();
+            var projects = await _matchingService.GetProjectRecommendationsAsync(userId);
+            return Ok(projects);
+        }
 
-                // Rule 1: Interests match (+10 points per keyword)
-                if (!string.IsNullOrWhiteSpace(studentProfile.Interests))
-                {
-                    var studentInterests = studentProfile.Interests.Split(',').Select(i => i.Trim().ToLower()).ToList();
-                    foreach (var cInt in currentInterests)
-                    {
-                        if (studentInterests.Contains(cInt) && !string.IsNullOrWhiteSpace(cInt))
-                        {
-                            score += 10;
-                            matchedInterests.Add(cInt);
-                        }
-                    }
-                }
+        // =========================================================================
+        // 7. SKILL GAP ANALYSIS
+        // GET /api/recommendation/skill-gap?targetDomain=AI&targetProjectId=1
+        // =========================================================================
+        [HttpGet("skill-gap")]
+        public async Task<IActionResult> GetSkillGapAnalysis(
+            [FromQuery] string? targetDomain = null,
+            [FromQuery] int? targetProjectId = null)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-                // Rule 2: University match (+5 points)
-                if (!string.IsNullOrWhiteSpace(currentProfile.University) && 
-                    currentProfile.University.Equals(studentProfile.University, StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 5;
-                }
+            var analysis = await _matchingService.AnalyzeSkillGapAsync(userId, targetDomain, targetProjectId);
+            return Ok(analysis);
+        }
 
-                // Rule 3: Department match (+2 points)
-                if (!string.IsNullOrWhiteSpace(currentProfile.Department) && 
-                    currentProfile.Department.Equals(studentProfile.Department, StringComparison.OrdinalIgnoreCase))
-                {
-                    score += 2;
-                }
+        // =========================================================================
+        // 8. USER RECOMMENDATION PREFERENCES
+        // GET /api/recommendation/preferences
+        // PUT /api/recommendation/preferences
+        // =========================================================================
+        [HttpGet("preferences")]
+        public async Task<IActionResult> GetPreferences()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-                var skillsList = string.IsNullOrWhiteSpace(studentProfile.Skills) 
-                    ? new List<string>() 
-                    : studentProfile.Skills.Split(',').Select(s => s.Trim()).ToList();
+            var prefs = await _matchingService.GetUserPreferencesAsync(userId);
+            return Ok(prefs);
+        }
 
-                recommendations.Add(new TeammateRecommendationDto
-                {
-                    UserId = student.Id,
-                    FullName = student.FullName,
-                    Department = studentProfile.Department,
-                    University = studentProfile.University,
-                    MatchedInterests = matchedInterests,
-                    Skills = skillsList,
-                    MatchScore = score,
-                    Bio = studentProfile.Bio
-                });
-            }
+        [HttpPut("preferences")]
+        public async Task<IActionResult> UpdatePreferences([FromBody] RecommendationPreference updated)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            var sortedRecommendations = recommendations.OrderByDescending(r => r.MatchScore).ToList();
-            
-            var filtered = sortedRecommendations.Where(r => r.MatchScore > 0).ToList();
+            var saved = await _matchingService.UpdateUserPreferencesAsync(userId, updated);
+            return Ok(saved);
+        }
 
-            if (!filtered.Any())
-            {
-                filtered = sortedRecommendations.Take(10).ToList();
-            }
+        // =========================================================================
+        // 9. DISMISS RECOMMENDATION
+        // POST /api/recommendation/{id}/dismiss
+        // =========================================================================
+        [HttpPost("{id}/dismiss")]
+        public async Task<IActionResult> DismissRecommendation(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
 
-            return Ok(filtered);
+            var success = await _matchingService.DismissRecommendationAsync(userId, id);
+            return Ok(new { success, message = "Recommendation dismissed." });
         }
     }
 }
