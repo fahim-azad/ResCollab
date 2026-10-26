@@ -83,6 +83,12 @@ namespace ResCollab.Api.Data
         public DbSet<ReportSubmission> ReportSubmissions { get; set; }
         public DbSet<ModerationAuditLog> ModerationAuditLogs { get; set; }
 
+        // Sprint 6 - External Data Collection & Normalization
+        public DbSet<ExternalDataSource> ExternalDataSources { get; set; }
+        public DbSet<ExternalResearchRecord> ExternalResearchRecords { get; set; }
+        public DbSet<IngestionJobLog> IngestionJobLogs { get; set; }
+        public DbSet<IngestionErrorRecord> IngestionErrorRecords { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -555,6 +561,33 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(l => l.ModeratorId)
                 .OnDelete(DeleteBehavior.Restrict);
+
+            // ExternalResearchRecord <-> ExternalDataSource
+            modelBuilder.Entity<ExternalResearchRecord>()
+                .HasOne(r => r.Source)
+                .WithMany(s => s.Records)
+                .HasForeignKey(r => r.SourceId)
+                .OnDelete(DeleteBehavior.SetNull);
+
+            modelBuilder.Entity<ExternalResearchRecord>()
+                .HasIndex(r => r.Doi);
+
+            modelBuilder.Entity<ExternalResearchRecord>()
+                .HasIndex(r => r.NormalizedTitleHash);
+
+            // IngestionJobLog <-> ExternalDataSource
+            modelBuilder.Entity<IngestionJobLog>()
+                .HasOne(j => j.Source)
+                .WithMany(s => s.JobLogs)
+                .HasForeignKey(j => j.SourceId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // IngestionErrorRecord <-> IngestionJobLog
+            modelBuilder.Entity<IngestionErrorRecord>()
+                .HasOne(e => e.JobLog)
+                .WithMany(j => j.ErrorRecords)
+                .HasForeignKey(e => e.JobLogId)
+                .OnDelete(DeleteBehavior.Cascade);
         }
     }
 }

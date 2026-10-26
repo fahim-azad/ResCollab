@@ -613,6 +613,142 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("EventBookmarks");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.ExternalDataSource", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ApiKey")
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("BaseUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.Property<string>("CollectionMethod")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("bit");
+
+                    b.Property<DateTime?>("LastRunAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<int>("RateLimitPerMinute")
+                        .HasColumnType("int");
+
+                    b.Property<string>("SourceKey")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("ExternalDataSources");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ExternalResearchRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Abstract")
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.Property<string>("Authors")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime>("CollectedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Doi")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<string>("IngestionStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("JournalOrVenue")
+                        .HasMaxLength(300)
+                        .HasColumnType("nvarchar(300)");
+
+                    b.Property<string>("License")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("NormalizedTitleHash")
+                        .HasMaxLength(128)
+                        .HasColumnType("nvarchar(128)");
+
+                    b.Property<string>("OriginalUrl")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PdfDownloadUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<string>("PrimaryField")
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<DateTime?>("PublicationDate")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int?>("PublicationYear")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("nvarchar(500)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Doi");
+
+                    b.HasIndex("NormalizedTitleHash");
+
+                    b.HasIndex("SourceId");
+
+                    b.ToTable("ExternalResearchRecords");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.FundingOpportunity", b =>
                 {
                     b.Property<int>("Id")
@@ -721,6 +857,90 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("IdeaId");
 
                     b.ToTable("IdeaApplications");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.IngestionErrorRecord", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ErrorCode")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("ErrorMessage")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<int>("JobLogId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("RawPayload")
+                        .IsRequired()
+                        .HasMaxLength(8000)
+                        .HasColumnType("nvarchar(max)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("JobLogId");
+
+                    b.ToTable("IngestionErrorRecords");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.IngestionJobLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("CompletedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("DuplicatesSkipped")
+                        .HasColumnType("int");
+
+                    b.Property<long>("DurationMs")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("ErrorsCount")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RecordsFetched")
+                        .HasColumnType("int");
+
+                    b.Property<int>("RecordsNormalized")
+                        .HasColumnType("int");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("SummaryMessage")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("SourceId");
+
+                    b.ToTable("IngestionJobLogs");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.InstitutionalMetric", b =>
@@ -2182,6 +2402,16 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.ExternalResearchRecord", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.ExternalDataSource", "Source")
+                        .WithMany("Records")
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Source");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.FundingOpportunity", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "PostedBy")
@@ -2209,6 +2439,28 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Applicant");
 
                     b.Navigation("Idea");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.IngestionErrorRecord", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.IngestionJobLog", "JobLog")
+                        .WithMany("ErrorRecords")
+                        .HasForeignKey("JobLogId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("JobLog");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.IngestionJobLog", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.ExternalDataSource", "Source")
+                        .WithMany("JobLogs")
+                        .HasForeignKey("SourceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Source");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.InstitutionalMetric", b =>
@@ -2642,6 +2894,18 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Messages");
 
                     b.Navigation("Participants");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ExternalDataSource", b =>
+                {
+                    b.Navigation("JobLogs");
+
+                    b.Navigation("Records");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.IngestionJobLog", b =>
+                {
+                    b.Navigation("ErrorRecords");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.Laboratory", b =>
