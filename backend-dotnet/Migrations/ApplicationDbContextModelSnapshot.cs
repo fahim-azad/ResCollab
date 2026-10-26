@@ -906,6 +906,47 @@ namespace ResCollab.Api.Migrations
                     b.ToTable("MilestoneFeedbacks");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.ModerationAuditLog", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionDetails")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int>("ModeratorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("NewStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("PreviousStatus")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<int>("ReportId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("datetime2");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModeratorId");
+
+                    b.HasIndex("ReportId");
+
+                    b.ToTable("ModerationAuditLogs");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Notification", b =>
                 {
                     b.Property<int>("Id")
@@ -1270,6 +1311,75 @@ namespace ResCollab.Api.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("RecommendationPreferences");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ReportSubmission", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    SqlServerPropertyBuilderExtensions.UseIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("ActionTaken")
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<string>("EvidenceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("nvarchar(1000)");
+
+                    b.Property<int?>("ModeratorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("nvarchar(100)");
+
+                    b.Property<int?>("ReportedUserId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ReporterId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("ResolutionNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("nvarchar(2000)");
+
+                    b.Property<DateTime?>("ResolvedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<DateTime>("SubmittedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<int>("TargetId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("TargetType")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ModeratorId");
+
+                    b.HasIndex("ReportedUserId");
+
+                    b.HasIndex("ReporterId");
+
+                    b.ToTable("ReportSubmissions");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchAnalyticsSnapshot", b =>
@@ -2166,6 +2276,25 @@ namespace ResCollab.Api.Migrations
                     b.Navigation("Milestone");
                 });
 
+            modelBuilder.Entity("ResCollab.Api.Models.ModerationAuditLog", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "Moderator")
+                        .WithMany()
+                        .HasForeignKey("ModeratorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("ResCollab.Api.Models.ReportSubmission", "Report")
+                        .WithMany("AuditLogs")
+                        .HasForeignKey("ReportId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Moderator");
+
+                    b.Navigation("Report");
+                });
+
             modelBuilder.Entity("ResCollab.Api.Models.Notification", b =>
                 {
                     b.HasOne("ResCollab.Api.Models.User", "User")
@@ -2286,6 +2415,31 @@ namespace ResCollab.Api.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ReportSubmission", b =>
+                {
+                    b.HasOne("ResCollab.Api.Models.User", "Moderator")
+                        .WithMany()
+                        .HasForeignKey("ModeratorId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ResCollab.Api.Models.User", "ReportedUser")
+                        .WithMany()
+                        .HasForeignKey("ReportedUserId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("ResCollab.Api.Models.User", "Reporter")
+                        .WithMany()
+                        .HasForeignKey("ReporterId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Moderator");
+
+                    b.Navigation("ReportedUser");
+
+                    b.Navigation("Reporter");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>
@@ -2498,6 +2652,11 @@ namespace ResCollab.Api.Migrations
             modelBuilder.Entity("ResCollab.Api.Models.OpenProject", b =>
                 {
                     b.Navigation("Applications");
+                });
+
+            modelBuilder.Entity("ResCollab.Api.Models.ReportSubmission", b =>
+                {
+                    b.Navigation("AuditLogs");
                 });
 
             modelBuilder.Entity("ResCollab.Api.Models.ResearchIdea", b =>

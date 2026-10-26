@@ -79,6 +79,10 @@ namespace ResCollab.Api.Data
         public DbSet<DashboardWidgetPreference> DashboardWidgetPreferences { get; set; }
         public DbSet<PersonalizedActivityLog> PersonalizedActivityLogs { get; set; }
 
+        // Sprint 6 - Moderation & Reporting
+        public DbSet<ReportSubmission> ReportSubmissions { get; set; }
+        public DbSet<ModerationAuditLog> ModerationAuditLogs { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -516,6 +520,41 @@ namespace ResCollab.Api.Data
                 .WithMany()
                 .HasForeignKey(a => a.UserId)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // ReportSubmission <-> Reporter (User)
+            modelBuilder.Entity<ReportSubmission>()
+                .HasOne(r => r.Reporter)
+                .WithMany()
+                .HasForeignKey(r => r.ReporterId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ReportSubmission <-> ReportedUser (User, optional)
+            modelBuilder.Entity<ReportSubmission>()
+                .HasOne(r => r.ReportedUser)
+                .WithMany()
+                .HasForeignKey(r => r.ReportedUserId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ReportSubmission <-> Moderator (User, optional)
+            modelBuilder.Entity<ReportSubmission>()
+                .HasOne(r => r.Moderator)
+                .WithMany()
+                .HasForeignKey(r => r.ModeratorId)
+                .OnDelete(DeleteBehavior.Restrict);
+
+            // ModerationAuditLog <-> ReportSubmission
+            modelBuilder.Entity<ModerationAuditLog>()
+                .HasOne(l => l.Report)
+                .WithMany(r => r.AuditLogs)
+                .HasForeignKey(l => l.ReportId)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // ModerationAuditLog <-> Moderator (User)
+            modelBuilder.Entity<ModerationAuditLog>()
+                .HasOne(l => l.Moderator)
+                .WithMany()
+                .HasForeignKey(l => l.ModeratorId)
+                .OnDelete(DeleteBehavior.Restrict);
         }
     }
 }
