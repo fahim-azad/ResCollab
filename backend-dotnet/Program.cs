@@ -79,6 +79,9 @@ builder.Services.AddScoped<IAiMatchingService, AiMatchingService>();
 // Add External Data Collection & Ingestion Service
 builder.Services.AddScoped<IExternalCollectionService, ExternalCollectionService>();
 
+// Add Research Normalization & Deduplication Service
+builder.Services.AddScoped<INormalizationService, NormalizationService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

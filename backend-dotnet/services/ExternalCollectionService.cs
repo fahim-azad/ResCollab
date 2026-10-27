@@ -21,15 +21,18 @@ namespace ResCollab.Api.Services
         private readonly ApplicationDbContext _context;
         private readonly HttpClient _httpClient;
         private readonly ILogger<ExternalCollectionService> _logger;
+        private readonly INormalizationService _normalizationService;
 
         public ExternalCollectionService(
             ApplicationDbContext context,
             HttpClient httpClient,
-            ILogger<ExternalCollectionService> logger)
+            ILogger<ExternalCollectionService> logger,
+            INormalizationService normalizationService)
         {
             _context = context;
             _httpClient = httpClient;
             _logger = logger;
+            _normalizationService = normalizationService;
         }
 
         // =========================================================================
@@ -193,82 +196,110 @@ namespace ResCollab.Api.Services
             jobLog.RecordsFetched = rawItems.Count;
 
             // Ingestion, Normalization & Deduplication Pass
+            var existingPool = await _context.ExternalResearchRecords.ToListAsync();
+
             foreach (var item in rawItems)
             {
                 try
                 {
-                    if (string.IsNullOrWhiteSpace(item.Title))
+                    var rawInput = new RawResearchInputDto
                     {
-                        jobLog.ErrorsCount++;
-                        _context.IngestionErrorRecords.Add(new IngestionErrorRecord
-                        {
-                            JobLogId = jobLog.Id,
-                            RawPayload = item.RawJsonSnippet ?? item.ExternalId,
-                            ErrorCode = "MissingTitle",
-                            ErrorMessage = "Record missing mandatory Title property.",
-                            OccurredAt = DateTime.UtcNow
-                        });
-                        continue;
-                    }
-
-                    var cleanTitle = NormalizeTitle(item.Title);
-                    var titleHash = ComputeTitleHash(cleanTitle);
-                    var canonicalDoi = CanonicalizeDoi(item.Doi);
-
-                    // Duplicate check: Match on canonical DOI OR normalized title hash
-                    var existingRecord = await _context.ExternalResearchRecords
-                        .FirstOrDefaultAsync(r => (canonicalDoi != null && r.Doi == canonicalDoi) ||
-                                                  (r.NormalizedTitleHash != null && r.NormalizedTitleHash == titleHash));
-
-                    if (existingRecord != null)
-                    {
-                        jobLog.DuplicatesSkipped++;
-
-                        // Staging entry marked as duplicate for audit visibility
-                        var duplicateRecord = new ExternalResearchRecord
-                        {
-                            SourceId = source.Id,
-                            ExternalId = item.ExternalId,
-                            Title = cleanTitle,
-                            NormalizedTitleHash = titleHash,
-                            Authors = item.Authors,
-                            Abstract = item.Abstract,
-                            Doi = canonicalDoi,
-                            PublicationYear = item.PublicationYear,
-                            PublicationDate = item.PublicationDate,
-                            JournalOrVenue = item.JournalOrVenue,
-                            PrimaryField = item.PrimaryField,
-                            OriginalUrl = item.OriginalUrl,
-                            PdfDownloadUrl = item.PdfDownloadUrl,
-                            License = item.License,
-                            IngestionStatus = "Duplicate",
-                            CollectedAt = DateTime.UtcNow
-                        };
-                        _context.ExternalResearchRecords.Add(duplicateRecord);
-                        continue;
-                    }
-
-                    var newRecord = new ExternalResearchRecord
-                    {
-                        SourceId = source.Id,
-                        ExternalId = item.ExternalId,
-                        Title = cleanTitle,
-                        NormalizedTitleHash = titleHash,
+                        Title = item.Title,
                         Authors = item.Authors,
                         Abstract = item.Abstract,
-                        Doi = canonicalDoi,
+                        Doi = item.Doi,
                         PublicationYear = item.PublicationYear,
                         PublicationDate = item.PublicationDate,
                         JournalOrVenue = item.JournalOrVenue,
                         PrimaryField = item.PrimaryField,
                         OriginalUrl = item.OriginalUrl,
                         PdfDownloadUrl = item.PdfDownloadUrl,
-                        License = item.License ?? "OpenAccess",
+                        License = item.License
+                    };
+
+                    var norm = _normalizationService.NormalizeAndValidate(rawInput);
+                    if (!norm.IsValid)
+                    {
+                        jobLog.ErrorsCount++;
+                        var firstErr = norm.ValidationErrors.FirstOrDefault() ?? "Validation failed";
+                        string code = firstErr.Contains("Title") ? "MissingTitle" : (firstErr.Contains("DOI") ? "InvalidDoiFormat" : "MalformedPayload");
+
+                        _context.IngestionErrorRecords.Add(new IngestionErrorRecord
+                        {
+                            JobLogId = jobLog.Id,
+                            RawPayload = item.RawJsonSnippet ?? item.Title ?? item.ExternalId ?? "Unknown Payload",
+                            ErrorCode = code,
+                            ErrorMessage = string.Join("; ", norm.ValidationErrors),
+                            OccurredAt = DateTime.UtcNow
+                        });
+                        continue;
+                    }
+
+                    var dupCheck = _normalizationService.CheckDuplicate(norm, existingPool);
+                    if (dupCheck.IsDuplicate)
+                    {
+                        jobLog.DuplicatesSkipped++;
+
+                        if (dupCheck.CanMerge && dupCheck.MatchedRecordId.HasValue)
+                        {
+                            var existingMatch = existingPool.FirstOrDefault(r => r.Id == dupCheck.MatchedRecordId.Value);
+                            if (existingMatch != null)
+                            {
+                                if (string.IsNullOrWhiteSpace(existingMatch.Abstract) && !string.IsNullOrWhiteSpace(norm.Abstract))
+                                    existingMatch.Abstract = norm.Abstract;
+                                if (string.IsNullOrWhiteSpace(existingMatch.PdfDownloadUrl) && !string.IsNullOrWhiteSpace(norm.PdfDownloadUrl))
+                                    existingMatch.PdfDownloadUrl = norm.PdfDownloadUrl;
+                                existingMatch.IngestionStatus = "Merged";
+                            }
+                        }
+
+                        // Staging entry marked as duplicate for audit visibility
+                        var duplicateRecord = new ExternalResearchRecord
+                        {
+                            SourceId = source.Id,
+                            ExternalId = item.ExternalId ?? Guid.NewGuid().ToString(),
+                            Title = norm.Title,
+                            NormalizedTitleHash = norm.NormalizedTitleHash,
+                            Authors = norm.Authors,
+                            Abstract = norm.Abstract,
+                            Doi = norm.Doi,
+                            PublicationYear = norm.PublicationYear,
+                            PublicationDate = norm.PublicationDate,
+                            JournalOrVenue = norm.JournalOrVenue,
+                            PrimaryField = norm.PrimaryField,
+                            OriginalUrl = norm.OriginalUrl,
+                            PdfDownloadUrl = norm.PdfDownloadUrl,
+                            License = norm.License,
+                            IngestionStatus = "Duplicate",
+                            CollectedAt = DateTime.UtcNow
+                        };
+                        _context.ExternalResearchRecords.Add(duplicateRecord);
+                        existingPool.Add(duplicateRecord);
+                        continue;
+                    }
+
+                    var newRecord = new ExternalResearchRecord
+                    {
+                        SourceId = source.Id,
+                        ExternalId = item.ExternalId ?? Guid.NewGuid().ToString(),
+                        Title = norm.Title,
+                        NormalizedTitleHash = norm.NormalizedTitleHash,
+                        Authors = norm.Authors,
+                        Abstract = norm.Abstract,
+                        Doi = norm.Doi,
+                        PublicationYear = norm.PublicationYear,
+                        PublicationDate = norm.PublicationDate,
+                        JournalOrVenue = norm.JournalOrVenue,
+                        PrimaryField = norm.PrimaryField,
+                        OriginalUrl = norm.OriginalUrl,
+                        PdfDownloadUrl = norm.PdfDownloadUrl,
+                        License = norm.License ?? "OpenAccess",
                         IngestionStatus = "Normalized",
                         CollectedAt = DateTime.UtcNow
                     };
 
                     _context.ExternalResearchRecords.Add(newRecord);
+                    existingPool.Add(newRecord);
                     jobLog.RecordsNormalized++;
                 }
                 catch (Exception ex)
@@ -277,7 +308,7 @@ namespace ResCollab.Api.Services
                     _context.IngestionErrorRecords.Add(new IngestionErrorRecord
                     {
                         JobLogId = jobLog.Id,
-                        RawPayload = item.RawJsonSnippet ?? item.Title,
+                        RawPayload = item.RawJsonSnippet ?? item.Title ?? item.ExternalId ?? "Unknown Payload",
                         ErrorCode = "ParsingException",
                         ErrorMessage = ex.Message,
                         OccurredAt = DateTime.UtcNow

@@ -19,10 +19,14 @@ namespace ResCollab.Api.Controllers
     public class ExternalDataController : ControllerBase
     {
         private readonly IExternalCollectionService _collectionService;
+        private readonly INormalizationService _normalizationService;
 
-        public ExternalDataController(IExternalCollectionService collectionService)
+        public ExternalDataController(
+            IExternalCollectionService collectionService,
+            INormalizationService normalizationService)
         {
             _collectionService = collectionService;
+            _normalizationService = normalizationService;
         }
 
         private string GetCurrentUserRole()
@@ -166,6 +170,73 @@ namespace ResCollab.Api.Controllers
             [FromQuery] int pageSize = 20)
         {
             var result = await _collectionService.GetIngestedRecordsAsync(sourceKey, status, search, page, pageSize);
+            return Ok(result);
+        }
+
+        // =========================================================================
+        // 6. TESTING & RUNNING NORMALIZATION PAYLOAD
+        // POST /api/external-data/normalize
+        // =========================================================================
+        [HttpPost("normalize")]
+        public IActionResult NormalizePayload([FromBody] RawResearchInputDto input)
+        {
+            var result = _normalizationService.NormalizeAndValidate(input);
+            return Ok(result);
+        }
+
+        // =========================================================================
+        // 7. BATCH DEDUPLICATION PASS OVER STAGED RECORDS
+        // POST /api/external-data/deduplicate
+        // =========================================================================
+        [HttpPost("deduplicate")]
+        public async Task<IActionResult> RunDeduplication()
+        {
+            if (!IsAdminOrStaff())
+            {
+                return Forbid();
+            }
+
+            var summary = await _normalizationService.RunDeduplicationPassAsync();
+            return Ok(summary);
+        }
+
+        // =========================================================================
+        // 8. QUARANTINED ERROR RECORDS & AUDIT
+        // GET /api/external-data/quarantine?errorCode=MissingTitle&page=1&pageSize=20
+        // POST /api/external-data/quarantine/{id}/reprocess
+        // =========================================================================
+        [HttpGet("quarantine")]
+        public async Task<IActionResult> GetQuarantined(
+            [FromQuery] string? errorCode = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int pageSize = 20)
+        {
+            if (!IsAdminOrStaff())
+            {
+                return Forbid();
+            }
+
+            var quarantined = await _normalizationService.GetQuarantinedRecordsAsync(errorCode, page, pageSize);
+            return Ok(quarantined);
+        }
+
+        [HttpPost("quarantine/{id:int}/reprocess")]
+        public async Task<IActionResult> ReprocessQuarantine(int id)
+        {
+            if (!IsAdminOrStaff())
+            {
+                return Forbid();
+            }
+
+            var result = await _normalizationService.ReprocessQuarantinedRecordAsync(id);
+            if (!result.Success && result.Errors.Any())
+            {
+                return BadRequest(result);
+            }
+            if (!result.Success)
+            {
+                return NotFound(result);
+            }
             return Ok(result);
         }
     }
