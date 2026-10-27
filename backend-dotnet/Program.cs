@@ -76,6 +76,9 @@ builder.Services.AddScoped<IWorkspaceAccessService, WorkspaceAccessService>();
 // Add AI Matching & Recommendations Service
 builder.Services.AddScoped<IAiMatchingService, AiMatchingService>();
 
+// Add External Data Collection & Ingestion Service
+builder.Services.AddScoped<IExternalCollectionService, ExternalCollectionService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

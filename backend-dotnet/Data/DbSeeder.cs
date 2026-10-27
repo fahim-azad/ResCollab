@@ -505,6 +505,143 @@ namespace ResCollab.Api.Data
                     }
                 }
             }
+
+            // Sprint 6 - External Data Sources Seeding
+            bool hasSources = await context.ExternalDataSources.AnyAsync();
+            if (!hasSources)
+            {
+                var srcArxiv = new ExternalDataSource
+                {
+                    SourceKey = "ARXIV",
+                    Name = "arXiv.org e-Print Archive",
+                    BaseUrl = "https://export.arxiv.org/api/query",
+                    CollectionMethod = "API",
+                    RateLimitPerMinute = 60,
+                    IsActive = true,
+                    LastRunAt = DateTime.UtcNow.AddHours(-4),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var srcCrossref = new ExternalDataSource
+                {
+                    SourceKey = "CROSSREF",
+                    Name = "Crossref Metadata Registry",
+                    BaseUrl = "https://api.crossref.org/works",
+                    CollectionMethod = "API",
+                    RateLimitPerMinute = 50,
+                    IsActive = true,
+                    LastRunAt = DateTime.UtcNow.AddHours(-12),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var srcOpenAlex = new ExternalDataSource
+                {
+                    SourceKey = "OPENALEX",
+                    Name = "OpenAlex Global Scholarly Graph",
+                    BaseUrl = "https://api.openalex.org/works",
+                    CollectionMethod = "API",
+                    RateLimitPerMinute = 60,
+                    IsActive = true,
+                    LastRunAt = DateTime.UtcNow.AddDays(-1),
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var srcWikiCfp = new ExternalDataSource
+                {
+                    SourceKey = "WIKICFP",
+                    Name = "WikiCFP Academic Conferences & CFPs",
+                    BaseUrl = "http://www.wikicfp.com/cfp/rss",
+                    CollectionMethod = "RSS_Feed",
+                    RateLimitPerMinute = 30,
+                    IsActive = true,
+                    LastRunAt = null,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                var srcInstitutional = new ExternalDataSource
+                {
+                    SourceKey = "INSTITUTIONAL",
+                    Name = "University Open Access Repository (DSpace / EPrints)",
+                    BaseUrl = "https://repository.mit.edu/oai",
+                    CollectionMethod = "OAI_PMH",
+                    RateLimitPerMinute = 40,
+                    IsActive = true,
+                    LastRunAt = null,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                context.ExternalDataSources.AddRange(srcArxiv, srcCrossref, srcOpenAlex, srcWikiCfp, srcInstitutional);
+                await context.SaveChangesAsync();
+
+                // Seed initial normalized external research records
+                var rec1 = new ExternalResearchRecord
+                {
+                    SourceId = srcArxiv.Id,
+                    ExternalId = "2401.05432",
+                    Title = "Attention-Driven Representations in Multi-Modal Deep Neural Networks",
+                    NormalizedTitleHash = "a1b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef0",
+                    Authors = "Dr. Alan Turing, Sarah Chen, Alice Student",
+                    Abstract = "Cross-attention mechanisms demonstrate superior inductive bias in aligning unstructured textual prompts with dense high-resolution imaging features.",
+                    Doi = "10.48550/arxiv.2401.05432",
+                    PublicationYear = 2024,
+                    PublicationDate = DateTime.UtcNow.AddDays(-40),
+                    JournalOrVenue = "arXiv e-Print Archive",
+                    PrimaryField = "Machine Learning & Computer Vision",
+                    OriginalUrl = "https://arxiv.org/abs/2401.05432",
+                    PdfDownloadUrl = "https://arxiv.org/pdf/2401.05432.pdf",
+                    License = "CC-BY-4.0",
+                    IngestionStatus = "Normalized",
+                    CollectedAt = DateTime.UtcNow.AddHours(-4)
+                };
+
+                var rec2 = new ExternalResearchRecord
+                {
+                    SourceId = srcCrossref.Id,
+                    ExternalId = "10.1038/s41586-023-06747-5",
+                    Title = "High-Throughput Single-Cell Sequencing and Neural Transcriptomics in Neurological Disorders",
+                    NormalizedTitleHash = "b2c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef01a",
+                    Authors = "Dr. Marie Curie, David Biology, Dr. Alistair Sterling",
+                    Abstract = "Cellular atlas mapping identifies conserved transcriptomic signatures across mammalian brain tissue during neurodegenerative onset.",
+                    Doi = "10.1038/s41586-023-06747-5",
+                    PublicationYear = 2023,
+                    PublicationDate = DateTime.UtcNow.AddDays(-120),
+                    JournalOrVenue = "Nature",
+                    PrimaryField = "Biomedical & Genomics",
+                    OriginalUrl = "https://doi.org/10.1038/s41586-023-06747-5",
+                    PdfDownloadUrl = null,
+                    License = "OpenAccess",
+                    IngestionStatus = "Normalized",
+                    CollectedAt = DateTime.UtcNow.AddHours(-12)
+                };
+
+                var rec3 = new ExternalResearchRecord
+                {
+                    SourceId = srcOpenAlex.Id,
+                    ExternalId = "W3125894102",
+                    Title = "Decentralized Consensus and Verification Protocols for Distributed Scientific Collaboration",
+                    NormalizedTitleHash = "c3d4e5f60718293a4b5c6d7e8f90123456789abcdef0123456789abcdef01a2b",
+                    Authors = "Bob Teammate, Marcus Vance, Prof. Elena Rostova",
+                    Abstract = "A fault-tolerant peer protocol establishing provable research asset provenance and reproducible computational verification across academic consortia.",
+                    Doi = "10.1145/3372297.3417882",
+                    PublicationYear = 2024,
+                    PublicationDate = DateTime.UtcNow.AddDays(-80),
+                    JournalOrVenue = "ACM Transactions on Distributed Computing",
+                    PrimaryField = "Computer Systems & Networking",
+                    OriginalUrl = "https://openalex.org/W3125894102",
+                    PdfDownloadUrl = "https://dl.acm.org/doi/pdf/10.1145/3372297.3417882",
+                    License = "OpenAccess",
+                    IngestionStatus = "Normalized",
+                    CollectedAt = DateTime.UtcNow.AddDays(-1)
+                };
+
+                context.ExternalResearchRecords.AddRange(rec1, rec2, rec3);
+                await context.SaveChangesAsync();
+            }
         }
     }
 }
