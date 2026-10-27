@@ -21,6 +21,7 @@ import ProjectDiscovery from './components/ProjectDiscovery';
 import MessagesPage from './components/MessagesPage';
 import PublicationManagement from './components/PublicationManagement';
 import FundingOpportunities from './components/FundingOpportunities';
+import ResearchAnalyticsDashboard from './components/ResearchAnalyticsDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -52,6 +53,7 @@ const App: React.FC = () => {
             <Route path="/publications" element={<PublicationManagement />} />
             <Route path="/funding" element={<FundingOpportunities />} />
             <Route path="/grants" element={<FundingOpportunities />} />
+            <Route path="/analytics" element={<ResearchAnalyticsDashboard />} />
           </Route>
         </Route>
       </Routes>

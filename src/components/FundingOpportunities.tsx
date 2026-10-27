@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import {
-  DollarSign, Search, Filter, Plus, Calendar, Building2,
-  ExternalLink, Clock, FileText, CheckCircle2, AlertCircle,
+  DollarSign, Search, Plus, Calendar, Building2,
+  Clock, FileText, CheckCircle2, AlertCircle,
   Edit3, Trash2, Eye, Shield, RefreshCw, Sparkles, Award,
   Check, X, Tag, ArrowRight, Bookmark, ArrowUpDown, Layers,
-  Compass, Share2, LayoutGrid, CheckSquare, UserCheck, AlertTriangle,
-  Download, ChevronRight
+  Compass, LayoutGrid, CheckSquare, UserCheck, AlertTriangle,
+  Download
 } from 'lucide-react';
 import FundingDetailsModal, { 
   type FundingOpportunityDetail,
@@ -77,9 +77,7 @@ export const FundingOpportunities: React.FC = () => {
   const [sortBy, setSortBy] = useState<'deadline-asc' | 'deadline-desc' | 'newest' | 'title-asc'>('deadline-asc');
 
   // State to trigger re-reading checklist progress from localStorage
-  const [checklistRefreshKey, setChecklistRefreshKey] = useState<number>(0);
-
-  // Saved/Bookmarked IDs (persisted locally)
+  const [, setChecklistRefreshKey] = useState<number>(0);
   const [savedIds, setSavedIds] = useState<number[]>(() => {
     try {
       const stored = localStorage.getItem('saved_funding_ids');

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { 
   X, ExternalLink, Calendar, Building2, CheckCircle2, 
   DollarSign, Clock, FileText, Share2, Check, 
