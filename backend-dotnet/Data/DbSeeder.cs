@@ -405,6 +405,106 @@ namespace ResCollab.Api.Data
                 context.AcademicEvents.AddRange(ev1, ev2, ev3, ev4, ev5, ev6, ev7);
                 await context.SaveChangesAsync();
             }
+
+            // Ensure an Administrator/Moderator user exists
+            bool hasAdmin = await context.Users.AnyAsync(u => u.Role == "Admin");
+            User? adminUser = null;
+            if (!hasAdmin)
+            {
+                adminUser = new User
+                {
+                    FullName = "Platform Administrator",
+                    Email = "admin@rescollab.edu",
+                    PasswordHash = BCrypt.Net.BCrypt.HashPassword("password123"),
+                    Role = "Admin",
+                    Profile = new UserProfile
+                    {
+                        Bio = "Lead Research Ethics Officer and System Administrator.",
+                        University = "ResCollab Consortium",
+                        Department = "Research Integrity Office",
+                        Interests = "Academic Ethics, Research Integrity, Moderation"
+                    }
+                };
+                context.Users.Add(adminUser);
+                await context.SaveChangesAsync();
+            }
+            else
+            {
+                adminUser = await context.Users.FirstOrDefaultAsync(u => u.Role == "Admin");
+            }
+
+            // Sprint 6 - Content Moderation & Reporting Seeding
+            bool hasReports = await context.ReportSubmissions.AnyAsync();
+            if (!hasReports)
+            {
+                var alice = await context.Users.FirstOrDefaultAsync(u => u.Email == "alice@student.edu");
+                var alan = await context.Users.FirstOrDefaultAsync(u => u.Email == "alan@mit.edu");
+                var bob = await context.Users.FirstOrDefaultAsync(u => u.Email == "bob@student.edu");
+
+                if (alice != null && alan != null && bob != null)
+                {
+                    var rep1 = new ReportSubmission
+                    {
+                        ReporterId = alice.Id,
+                        TargetType = "CommunityPost",
+                        TargetId = 1,
+                        ReportedUserId = alan.Id,
+                        Reason = "Plagiarism",
+                        Description = "The discussion post cites novel benchmark findings from an uncredited arXiv paper without proper author attribution or DOI.",
+                        Status = "Pending",
+                        ActionTaken = "None",
+                        SubmittedAt = DateTime.UtcNow.AddHours(-18)
+                    };
+
+                    var rep2 = new ReportSubmission
+                    {
+                        ReporterId = bob.Id,
+                        TargetType = "CommunityComment",
+                        TargetId = 1,
+                        ReportedUserId = alice.Id,
+                        Reason = "Harassment",
+                        Description = "Targeted dismissive remarks and personal attacks in discussion thread violating community guidelines.",
+                        Status = "UnderReview",
+                        ModeratorId = adminUser?.Id,
+                        ActionTaken = "None",
+                        SubmittedAt = DateTime.UtcNow.AddDays(-2)
+                    };
+
+                    var rep3 = new ReportSubmission
+                    {
+                        ReporterId = alice.Id,
+                        TargetType = "User",
+                        TargetId = bob.Id,
+                        ReportedUserId = bob.Id,
+                        Reason = "Spam",
+                        Description = "Repeated commercial service promotion and unsolicited tutoring solicitations in research channels.",
+                        Status = "Resolved",
+                        ModeratorId = adminUser?.Id,
+                        ResolutionNote = "Official warning issued. Promotional links removed.",
+                        ActionTaken = "WarningIssued",
+                        SubmittedAt = DateTime.UtcNow.AddDays(-5),
+                        ResolvedAt = DateTime.UtcNow.AddDays(-3)
+                    };
+
+                    context.ReportSubmissions.AddRange(rep1, rep2, rep3);
+                    await context.SaveChangesAsync();
+
+                    if (adminUser != null)
+                    {
+                        var audit = new ModerationAuditLog
+                        {
+                            ReportId = rep3.Id,
+                            ModeratorId = adminUser.Id,
+                            PreviousStatus = "UnderReview",
+                            NewStatus = "Resolved",
+                            ActionDetails = "Decision: Resolved | Action: WarningIssued | Note: Official warning issued.",
+                            Timestamp = DateTime.UtcNow.AddDays(-3)
+                        };
+                        context.ModerationAuditLogs.Add(audit);
+                        await context.SaveChangesAsync();
+                    }
+                }
+            }
         }
     }
 }
