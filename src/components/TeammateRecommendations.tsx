@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Users, Building, GraduationCap, AlertCircle, User } from 'lucide-react';
+import { Users, Building, GraduationCap, AlertCircle, User, Sparkles } from 'lucide-react';
 import './TeammateRecommendations.css';
 
 interface TeammateDto {
@@ -64,9 +64,17 @@ const TeammateRecommendations: React.FC = () => {
 
   return (
     <div className="teammates-container animate-fade-in">
-      <div className="teammates-header">
-        <h1>Find Teammates</h1>
-        <p>Connect with peers who share your research interests and bring complementary skills to the table.</p>
+      <div className="teammates-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Find Teammates</h1>
+          <p style={{ margin: '0.4rem 0 0 0' }}>Connect with peers who share your research interests and bring complementary skills to the table.</p>
+        </div>
+        <button
+          onClick={() => navigate('/recommendations?tab=teammates')}
+          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff', border: 'none', borderRadius: '10px', padding: '0.65rem 1.2rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}
+        >
+          <Sparkles size={16} /> Open Full AI Hub
+        </button>
       </div>
 
       {teammates.length === 0 ? (

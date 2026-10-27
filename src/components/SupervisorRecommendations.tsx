@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { User, Building, GraduationCap, AlertCircle } from 'lucide-react';
+import { User, Building, GraduationCap, AlertCircle, Sparkles } from 'lucide-react';
 import './SupervisorRecommendations.css';
 
 interface SupervisorDto {
@@ -63,9 +63,17 @@ const SupervisorRecommendations: React.FC = () => {
 
   return (
     <div className="supervisors-container animate-fade-in">
-      <div className="supervisors-header">
-        <h1>Supervisor Recommendations</h1>
-        <p>AI-powered matches based on your research interests and academic profile.</p>
+      <div className="supervisors-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+        <div>
+          <h1 style={{ margin: 0 }}>Supervisor Recommendations</h1>
+          <p style={{ margin: '0.4rem 0 0 0' }}>AI-powered matches based on your research interests and academic profile.</p>
+        </div>
+        <button
+          onClick={() => navigate('/recommendations?tab=supervisors')}
+          style={{ background: 'linear-gradient(135deg, #6366f1, #4f46e5)', color: '#fff', border: 'none', borderRadius: '10px', padding: '0.65rem 1.2rem', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}
+        >
+          <Sparkles size={16} /> Open Full AI Hub
+        </button>
       </div>
 
       {supervisors.length === 0 ? (
