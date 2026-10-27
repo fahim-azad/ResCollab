@@ -395,3 +395,248 @@
   from { transform: translateY(100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Profile Banner Card */
+.profile-banner-card {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  background: #ffffff;
+  padding: 1.6rem 2rem;
+  border-radius: 16px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 4px 15px rgba(15, 23, 42, 0.04);
+  margin-bottom: 1.8rem;
+}
+
+.profile-banner-avatar {
+  width: 68px;
+  height: 68px;
+  border-radius: 16px;
+  background: rgba(79, 70, 229, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.profile-banner-info h2 {
+  margin: 0;
+  font-size: 1.55rem;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+.profile-banner-meta {
+  margin: 0.35rem 0 0 0;
+  font-size: 0.92rem;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.meta-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  color: #4f46e5;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.meta-link:hover {
+  text-decoration: underline;
+}
+
+.scope-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  background: #e0e7ff;
+  color: #4338ca;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+/* Timeline Year-over-Year Bars */
+.timeline-bars-grid {
+  display: flex;
+  align-items: flex-end;
+  gap: 1.2rem;
+  height: 180px;
+  padding: 1rem 0 0.5rem 0;
+  overflow-x: auto;
+}
+
+.timeline-bar-col {
+  flex: 1;
+  min-width: 65px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+  justify-content: flex-end;
+  gap: 0.5rem;
+}
+
+.timeline-bar-count {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #475569;
+}
+
+.timeline-bar-track {
+  width: 32px;
+  height: 110px;
+  background: #f1f5f9;
+  border-radius: 8px;
+  display: flex;
+  align-items: flex-end;
+  overflow: hidden;
+}
+
+.timeline-bar-fill {
+  width: 100%;
+  background: linear-gradient(180deg, #06b6d4, #4f46e5);
+  border-radius: 8px;
+  transition: height 0.6s ease;
+}
+
+.timeline-bar-year {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+/* External Partnerships Grid */
+.collab-partners-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+}
+
+.partner-card {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  background: #ffffff;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.03);
+}
+
+.partner-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  background: #eef2ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.partner-details h4 {
+  margin: 0 0 0.25rem 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.partner-collab-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #4f46e5;
+  font-weight: 600;
+}
+
+/* Segmented Progress Bar */
+.segmented-progress-wrapper {
+  margin-top: 0.5rem;
+}
+
+.segmented-progress-bar {
+  display: flex;
+  height: 14px;
+  border-radius: 9999px;
+  overflow: hidden;
+  background: #f1f5f9;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.segment {
+  height: 100%;
+  transition: width 0.5s ease;
+}
+
+.segment-done {
+  background: #10b981;
+}
+
+.segment-inprogress {
+  background: #06b6d4;
+}
+
+.segment-pending {
+  background: #cbd5e1;
+}
+
+.segmented-legend {
+  display: flex;
+  gap: 1.5rem;
+  margin-top: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+.dot-done { background: #10b981; }
+.dot-inprogress { background: #06b6d4; }
+.dot-pending { background: #cbd5e1; }
+
+/* Member Avatar & Status Pills */
+.member-avatar-mini {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #e0e7ff;
+  color: #4338ca;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.85rem;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.25rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.task-done { background: #dcfce7; color: #15803d; }
+.task-prog { background: #cffafe; color: #0e7490; }
+.task-todo { background: #f1f5f9; color: #64748b; }
+

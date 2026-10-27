@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, Shield, User, Clock, Briefcase } from 'lucide-react';
+import { Plus, Shield, User, Clock, Briefcase, BarChart2, TrendingUp, CheckCircle2, Award, Calendar, CheckSquare } from 'lucide-react';
 import WorkspaceTasks from './WorkspaceTasks';
 import WorkspaceFilesAndNotes from './WorkspaceFilesAndNotes';
 import './WorkspaceDashboard.css';
@@ -21,12 +21,44 @@ interface MemberDto {
   joinedAt: string;
 }
 
+interface TeamAnalyticsDto {
+  workspaceId: number;
+  workspaceName: string;
+  description?: string;
+  ownerName: string;
+  totalMembersCount: number;
+  totalTasksCount: number;
+  completedTasksCount: number;
+  inProgressTasksCount: number;
+  pendingTasksCount: number;
+  taskCompletionRate: number;
+  milestoneTasksCount: number;
+  memberContributions: Array<{
+    userId: number;
+    fullName: string;
+    roleInWorkspace: string;
+    assignedTasksCount: number;
+    completedTasksCount: number;
+    taskCompletionRate: number;
+    contributionPercentage: number;
+  }>;
+  recentTasks: Array<{
+    taskId: number;
+    title: string;
+    status: string;
+    dueDate?: string;
+    assigneeName?: string;
+  }>;
+}
+
 const WorkspaceDashboard: React.FC = () => {
   const [workspaces, setWorkspaces] = useState<WorkspaceDto[]>([]);
   const [selectedWorkspace, setSelectedWorkspace] = useState<WorkspaceDto | null>(null);
-  const [activeTab, setActiveTab] = useState<'members' | 'tasks' | 'files'>('members');
+  const [activeTab, setActiveTab] = useState<'members' | 'tasks' | 'files' | 'analytics'>('members');
   const [members, setMembers] = useState<MemberDto[]>([]);
   const [connections, setConnections] = useState<{ id: number; name: string }[]>([]);
+  const [teamAnalytics, setTeamAnalytics] = useState<TeamAnalyticsDto | null>(null);
+  const [loadingAnalytics, setLoadingAnalytics] = useState<boolean>(false);
   
   const [loading, setLoading] = useState(true);
   const [newUserId, setNewUserId] = useState('');
@@ -94,6 +126,26 @@ const WorkspaceDashboard: React.FC = () => {
       }
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const fetchTeamAnalytics = async (wsId: number) => {
+    try {
+      setLoadingAnalytics(true);
+      const token = localStorage.getItem('token');
+      const res = await fetch(`http://localhost:5000/api/analytics/team/${wsId}`, {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setTeamAnalytics(data);
+      } else {
+        setTeamAnalytics(null);
+      }
+    } catch (err) {
+      console.error('Error fetching team analytics:', err);
+    } finally {
+      setLoadingAnalytics(false);
     }
   };
 
@@ -191,10 +243,21 @@ const WorkspaceDashboard: React.FC = () => {
           <div className="detail-header" style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '1rem' }}>
             <h2 style={{ margin: 0 }}>{selectedWorkspace.name}</h2>
             
-            <div className="workspace-tabs" style={{ display: 'flex', gap: '1rem', width: '100%', borderBottom: '1px solid #eee' }}>
+            <div className="workspace-tabs" style={{ display: 'flex', gap: '1rem', width: '100%', borderBottom: '1px solid #eee', overflowX: 'auto' }}>
               <button className={`tab-btn ${activeTab === 'members' ? 'active' : ''}`} onClick={() => setActiveTab('members')}>Members & Access</button>
               <button className={`tab-btn ${activeTab === 'tasks' ? 'active' : ''}`} onClick={() => setActiveTab('tasks')}>Tasks & Milestones</button>
               <button className={`tab-btn ${activeTab === 'files' ? 'active' : ''}`} onClick={() => setActiveTab('files')}>Files & Notes</button>
+              <button
+                id="tab-workspace-analytics"
+                className={`tab-btn ${activeTab === 'analytics' ? 'active' : ''}`}
+                onClick={() => {
+                  setActiveTab('analytics');
+                  fetchTeamAnalytics(selectedWorkspace.id);
+                }}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+              >
+                <BarChart2 size={16} /> Team Velocity & Analytics
+              </button>
             </div>
           </div>
 
@@ -264,6 +327,178 @@ const WorkspaceDashboard: React.FC = () => {
 
           {activeTab === 'files' && (
              <WorkspaceFilesAndNotes workspaceId={selectedWorkspace.id} />
+          )}
+
+          {activeTab === 'analytics' && (
+            <div className="workspace-analytics-panel" style={{ marginTop: '1.5rem' }}>
+              {loadingAnalytics ? (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#64748b' }}>
+                  <p>Calculating team sprint velocity metrics...</p>
+                </div>
+              ) : teamAnalytics ? (
+                <>
+                  {/* KPI Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem', marginBottom: '1.8rem' }}>
+                    <div style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <span>Team Size</span>
+                        <User size={18} color="#4f46e5" />
+                      </div>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#0f172a', margin: '0.4rem 0' }}>{teamAnalytics.totalMembersCount}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Active Collaborators</div>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <span>Sprint Velocity</span>
+                        <TrendingUp size={18} color="#10b981" />
+                      </div>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#10b981', margin: '0.4rem 0' }}>{Math.round(teamAnalytics.taskCompletionRate)}%</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{teamAnalytics.completedTasksCount} / {teamAnalytics.totalTasksCount} tasks done</div>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <span>Task Status</span>
+                        <CheckSquare size={18} color="#06b6d4" />
+                      </div>
+                      <div style={{ fontSize: '1.4rem', fontWeight: 800, color: '#0f172a', margin: '0.4rem 0' }}>
+                        <span style={{ color: '#10b981' }}>{teamAnalytics.completedTasksCount}</span> / <span style={{ color: '#06b6d4' }}>{teamAnalytics.inProgressTasksCount}</span> / <span style={{ color: '#64748b' }}>{teamAnalytics.pendingTasksCount}</span>
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Done / In-Prog / Todo</div>
+                    </div>
+
+                    <div style={{ background: '#f8fafc', padding: '1.2rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                        <span>Milestones Met</span>
+                        <Award size={18} color="#f59e0b" />
+                      </div>
+                      <div style={{ fontSize: '1.8rem', fontWeight: 800, color: '#f59e0b', margin: '0.4rem 0' }}>{teamAnalytics.milestoneTasksCount}</div>
+                      <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Research Milestones</div>
+                    </div>
+                  </div>
+
+                  {/* Task Status Segmented Progress Bar */}
+                  {teamAnalytics.totalTasksCount > 0 && (
+                    <div style={{ background: '#ffffff', padding: '1.4rem', borderRadius: '12px', border: '1px solid #e2e8f0', marginBottom: '1.8rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.8rem', fontWeight: 600, color: '#334155' }}>
+                        <span>Sprint Task Distribution</span>
+                        <span style={{ color: '#64748b', fontSize: '0.9rem' }}>{teamAnalytics.totalTasksCount} Total Tasks</span>
+                      </div>
+                      <div style={{ display: 'flex', height: '12px', borderRadius: '9999px', overflow: 'hidden', background: '#f1f5f9' }}>
+                        <div style={{ width: `${(teamAnalytics.completedTasksCount / teamAnalytics.totalTasksCount) * 100}%`, background: '#10b981' }} title={`Completed: ${teamAnalytics.completedTasksCount}`} />
+                        <div style={{ width: `${(teamAnalytics.inProgressTasksCount / teamAnalytics.totalTasksCount) * 100}%`, background: '#06b6d4' }} title={`In-Progress: ${teamAnalytics.inProgressTasksCount}`} />
+                        <div style={{ width: `${(teamAnalytics.pendingTasksCount / teamAnalytics.totalTasksCount) * 100}%`, background: '#cbd5e1' }} title={`Pending: ${teamAnalytics.pendingTasksCount}`} />
+                      </div>
+                      <div style={{ display: 'flex', gap: '1.5rem', marginTop: '0.8rem', fontSize: '0.82rem', color: '#64748b' }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#10b981' }} /> Done ({teamAnalytics.completedTasksCount})
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#06b6d4' }} /> In Progress ({teamAnalytics.inProgressTasksCount})
+                        </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#cbd5e1' }} /> To-Do ({teamAnalytics.pendingTasksCount})
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Member Contribution Breakdown */}
+                  <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '1.4rem', marginBottom: '1.8rem' }}>
+                    <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <CheckCircle2 size={18} color="#4f46e5" /> Member Task Velocity Matrix
+                    </h3>
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.9rem' }}>
+                        <thead>
+                          <tr style={{ borderBottom: '2px solid #e2e8f0', color: '#64748b' }}>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Member</th>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Role</th>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Assigned</th>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Completed</th>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Velocity</th>
+                            <th style={{ padding: '0.6rem 0.8rem' }}>Sprint Contribution</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {teamAnalytics.memberContributions?.map(m => {
+                            const barColor = m.taskCompletionRate >= 70 ? '#10b981' : m.taskCompletionRate >= 40 ? '#06b6d4' : '#f59e0b';
+                            return (
+                              <tr key={m.userId} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                <td style={{ padding: '0.8rem', fontWeight: 600 }}>{m.fullName}</td>
+                                <td style={{ padding: '0.8rem' }}><span className="role-badge" style={{ background: '#f1f5f9' }}>{m.roleInWorkspace || 'Member'}</span></td>
+                                <td style={{ padding: '0.8rem' }}>{m.assignedTasksCount}</td>
+                                <td style={{ padding: '0.8rem' }}>{m.completedTasksCount}</td>
+                                <td style={{ padding: '0.8rem', width: '160px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${Math.min(100, m.taskCompletionRate)}%`, height: '100%', background: barColor }} />
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, minWidth: '34px' }}>{Math.round(m.taskCompletionRate)}%</span>
+                                  </div>
+                                </td>
+                                <td style={{ padding: '0.8rem', width: '160px' }}>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <div style={{ flex: 1, height: '6px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
+                                      <div style={{ width: `${Math.min(100, m.contributionPercentage)}%`, height: '100%', background: 'linear-gradient(90deg, #6366f1, #a855f7)' }} />
+                                    </div>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: 700, minWidth: '34px' }}>{Math.round(m.contributionPercentage)}%</span>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {(!teamAnalytics.memberContributions || teamAnalytics.memberContributions.length === 0) && (
+                            <tr><td colSpan={6} style={{ padding: '1rem', textAlign: 'center', color: '#94a3b8' }}>No member contributions yet.</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  {/* Recent Tasks */}
+                  {teamAnalytics.recentTasks && teamAnalytics.recentTasks.length > 0 && (
+                    <div style={{ background: '#ffffff', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '1.4rem' }}>
+                      <h3 style={{ margin: '0 0 1rem 0', fontSize: '1.1rem', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Clock size={18} color="#06b6d4" /> Recent Sprint Tasks & Status
+                      </h3>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        {teamAnalytics.recentTasks.map(t => (
+                          <div key={t.taskId} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', background: '#f8fafc', borderRadius: '8px' }}>
+                            <div>
+                              <div style={{ fontWeight: 600, color: '#1e293b' }}>{t.title}</div>
+                              <div style={{ fontSize: '0.8rem', color: '#64748b' }}>Assignee: {t.assigneeName || 'Unassigned'}</div>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem' }}>
+                              {t.dueDate && (
+                                <span style={{ fontSize: '0.8rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                  <Calendar size={13} /> {new Date(t.dueDate).toLocaleDateString()}
+                                </span>
+                              )}
+                              <span style={{
+                                padding: '0.2rem 0.6rem',
+                                borderRadius: '9999px',
+                                fontSize: '0.78rem',
+                                fontWeight: 700,
+                                background: t.status === 'Done' || t.status === 'Completed' ? '#dcfce7' : t.status === 'InProgress' ? '#cffafe' : '#f1f5f9',
+                                color: t.status === 'Done' || t.status === 'Completed' ? '#15803d' : t.status === 'InProgress' ? '#0e7490' : '#64748b'
+                              }}>
+                                {t.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}>
+                  <p>No analytics data available for this workspace.</p>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

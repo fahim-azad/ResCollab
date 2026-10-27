@@ -2,12 +2,13 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   BarChart2, Building2, Users, BookOpen, Layers,
   RefreshCw, TrendingUp, Compass, Award, Shield,
-  CheckCircle2, Clock, Globe, ArrowUpRight, FolderGit2
+  CheckCircle2, Clock, Globe, ArrowUpRight, FolderGit2,
+  ExternalLink, Calendar, CheckSquare, Sparkles, UserCheck
 } from 'lucide-react';
 import './ResearchAnalyticsDashboard.css';
 
 // ==========================================
-// TYPES & INTERFACES
+// TYPES & INTERFACES (Aligned with Backend DTOs)
 // ==========================================
 
 interface GlobalSummary {
@@ -23,6 +24,7 @@ interface GlobalSummary {
     id: number;
     scopeType: string;
     scopeId: number;
+    scopeName?: string;
     totalPublications: number;
     totalProjects: number;
     activeCollaborations: number;
@@ -31,82 +33,105 @@ interface GlobalSummary {
   }>;
 }
 
+interface YearlyTrend {
+  year: number;
+  count: number;
+}
+
+interface CrossInstitutionCollab {
+  targetInstitution: string;
+  jointCollaboratorsCount: number;
+}
+
+interface DepartmentStat {
+  departmentId: number;
+  departmentName: string;
+  researchersCount: number;
+  publicationsCount: number;
+  laboratoriesCount: number;
+}
+
 interface InstitutionalAnalytics {
   institutionId: number;
   institutionName: string;
+  country?: string;
+  city?: string;
+  website?: string;
   totalResearchers: number;
+  facultyCount: number;
+  studentCount: number;
   totalPublications: number;
-  activeWorkspaces: number;
-  openProjects: number;
-  externalPartnerships: number;
-  departmentBreakdown: Array<{
-    departmentId: number;
-    departmentName: string;
-    researcherCount: number;
-    publicationCount: number;
-    activeProjectsCount: number;
-  }>;
+  activeWorkspacesCount: number;
+  openProjectsCount: number;
+  laboratoriesCount: number;
+  departments: DepartmentStat[];
+  publicationTrends: YearlyTrend[];
+  crossInstitutionalCollaborations: CrossInstitutionCollab[];
 }
 
 interface DepartmentAnalytics {
   departmentId: number;
   departmentName: string;
   institutionName: string;
-  researchersCount: number;
-  publicationsCount: number;
+  totalResearchers: number;
+  facultyCount: number;
+  studentCount: number;
+  totalPublications: number;
+  laboratoriesCount: number;
   activeProjectsCount: number;
-  activeResearchers: Array<{
-    userId: number;
-    fullName: string;
-    role: string;
-    publicationCount: number;
-    activeProjectsCount: number;
-  }>;
 }
 
 interface ResearcherAnalytics {
   userId: number;
   fullName: string;
+  role: string;
   institution?: string;
   department?: string;
-  role: string;
-  publicationCount: number;
-  activeCollaborations: number;
-  activeWorkspaces: number;
-  supervisedProjects: number;
+  bio?: string;
+  skills?: string;
+  interests?: string;
+  totalPublications: number;
+  activeProjectsCount: number;
+  collaboratorsCount: number;
+  totalAssignedTasks: number;
+  completedTasksCount: number;
+  taskCompletionRate: number;
+  taskVelocity30Days: number;
+  publicationsTimeline: YearlyTrend[];
+}
+
+interface TeamMemberContribution {
+  userId: number;
+  fullName: string;
+  roleInWorkspace: string;
   assignedTasksCount: number;
   completedTasksCount: number;
   taskCompletionRate: number;
-  recentPublications: Array<{
-    id: number;
-    title: string;
-    journalOrConference?: string;
-    publicationYear: number;
-  }>;
-  collaboratorNetwork: Array<{
-    userId: number;
-    fullName: string;
-    institution?: string;
-  }>;
+  contributionPercentage: number;
 }
 
-interface TeamAnalytics {
+interface WorkspaceRecentTask {
+  taskId: number;
+  title: string;
+  status: string;
+  dueDate?: string;
+  assigneeName?: string;
+}
+
+interface WorkspaceTeamAnalytics {
   workspaceId: number;
   workspaceName: string;
-  membersCount: number;
-  totalTasks: number;
-  completedTasks: number;
-  inProgressTasks: number;
-  todoTasks: number;
-  completionRate: number;
-  memberContributions: Array<{
-    userId: number;
-    fullName: string;
-    role: string;
-    assignedTasksCount: number;
-    completedTasksCount: number;
-  }>;
-  milestoneVelocity: number;
+  description?: string;
+  ownerName: string;
+  totalMembersCount: number;
+  totalTasksCount: number;
+  completedTasksCount: number;
+  inProgressTasksCount: number;
+  pendingTasksCount: number;
+  taskCompletionRate: number;
+  milestoneTasksCount: number;
+  memberContributions: TeamMemberContribution[];
+  recentTasks: WorkspaceRecentTask[];
 }
 
 interface UniversityItem {
@@ -130,7 +155,7 @@ const ResearchAnalyticsDashboard: React.FC = () => {
   const [institutionalData, setInstitutionalData] = useState<InstitutionalAnalytics | null>(null);
   const [departmentData, setDepartmentData] = useState<DepartmentAnalytics | null>(null);
   const [researcherData, setResearcherData] = useState<ResearcherAnalytics | null>(null);
-  const [teamData, setTeamData] = useState<TeamAnalytics | null>(null);
+  const [teamData, setTeamData] = useState<WorkspaceTeamAnalytics | null>(null);
 
   // Selectors list
   const [universities, setUniversities] = useState<UniversityItem[]>([]);
@@ -141,6 +166,7 @@ const ResearchAnalyticsDashboard: React.FC = () => {
 
   const [departmentIdInput, setDepartmentIdInput] = useState<number>(1);
   const [researcherIdInput, setResearcherIdInput] = useState<string>('');
+  const [deptSearchTerm, setDeptSearchTerm] = useState<string>('');
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -319,6 +345,11 @@ const ResearchAnalyticsDashboard: React.FC = () => {
     }
   };
 
+  // Filtered department list for institutional view
+  const filteredDepartments = institutionalData?.departments?.filter(d =>
+    d.departmentName.toLowerCase().includes(deptSearchTerm.toLowerCase())
+  ) || [];
+
   return (
     <div className="analytics-container" id="research-analytics-dashboard">
       {/* Header Banner */}
@@ -328,7 +359,7 @@ const ResearchAnalyticsDashboard: React.FC = () => {
             <BarChart2 size={32} color="#4f46e5" />
             Research & Collaboration Analytics
           </h1>
-          <p>Multi-dimensional performance metrics, publication outputs, and collaboration networks.</p>
+          <p>Institutional metrics, workspace sprint velocity, publication output, and cross-discipline networks.</p>
         </div>
 
         <div className="analytics-header-actions">
@@ -358,7 +389,14 @@ const ResearchAnalyticsDashboard: React.FC = () => {
           className={`analytics-tab-btn ${activeTab === 'institution' ? 'active' : ''}`}
           onClick={() => handleTabChange('institution')}
         >
-          <Building2 size={18} /> Institutional
+          <Building2 size={18} /> Institutional Metrics
+        </button>
+        <button
+          id="tab-analytics-team"
+          className={`analytics-tab-btn ${activeTab === 'team' ? 'active' : ''}`}
+          onClick={() => handleTabChange('team')}
+        >
+          <Shield size={18} /> Team & Workspace Velocity
         </button>
         <button
           id="tab-analytics-department"
@@ -372,18 +410,13 @@ const ResearchAnalyticsDashboard: React.FC = () => {
           className={`analytics-tab-btn ${activeTab === 'researcher' ? 'active' : ''}`}
           onClick={() => handleTabChange('researcher')}
         >
-          <Users size={18} /> My Researcher Metrics
-        </button>
-        <button
-          id="tab-analytics-team"
-          className={`analytics-tab-btn ${activeTab === 'team' ? 'active' : ''}`}
-          onClick={() => handleTabChange('team')}
-        >
-          <Shield size={18} /> Workspace & Team Velocity
+          <Users size={18} /> Researcher Metrics
         </button>
       </div>
 
-      {/* TAB 1: GLOBAL PLATFORM ANALYTICS */}
+      {/* =========================================================================
+          TAB 1: GLOBAL PLATFORM ANALYTICS
+         ========================================================================= */}
       {activeTab === 'global' && (
         <div id="panel-analytics-global">
           {loading && !globalData ? (
@@ -468,30 +501,21 @@ const ResearchAnalyticsDashboard: React.FC = () => {
                       <thead>
                         <tr>
                           <th>Scope Type</th>
-                          <th>Scope ID</th>
+                          <th>Scope Name / ID</th>
                           <th>Publications</th>
                           <th>Projects</th>
                           <th>Collaborations</th>
-                          <th>Task Velocity</th>
                           <th>Timestamp</th>
                         </tr>
                       </thead>
                       <tbody>
                         {globalData.recentSnapshots.map(s => (
                           <tr key={s.id}>
-                            <td><strong>{s.scopeType}</strong></td>
-                            <td>#{s.scopeId}</td>
+                            <td><strong className="scope-badge">{s.scopeType}</strong></td>
+                            <td>{s.scopeName || `#${s.scopeId}`}</td>
                             <td>{s.totalPublications}</td>
                             <td>{s.totalProjects}</td>
                             <td>{s.activeCollaborations}</td>
-                            <td>
-                              <div className="progress-container">
-                                <div className="progress-bar-bg">
-                                  <div className="progress-bar-fill" style={{ width: `${Math.min(100, s.progressPercentage)}%` }} />
-                                </div>
-                                <span className="progress-label">{Math.round(s.progressPercentage)}%</span>
-                              </div>
-                            </td>
                             <td>{new Date(s.lastCalculated).toLocaleDateString()}</td>
                           </tr>
                         ))}
@@ -507,11 +531,13 @@ const ResearchAnalyticsDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: INSTITUTIONAL ANALYTICS */}
+      {/* =========================================================================
+          TAB 2: INSTITUTIONAL METRICS VIEW [T-018.4]
+         ========================================================================= */}
       {activeTab === 'institution' && (
         <div id="panel-analytics-institution">
           <div className="filter-bar">
-            <label style={{ fontWeight: 600, color: '#475569' }}>Select University:</label>
+            <label style={{ fontWeight: 600, color: '#475569' }}>Select University / Institution:</label>
             <select
               id="select-analytics-institution"
               className="filter-select"
@@ -530,39 +556,148 @@ const ResearchAnalyticsDashboard: React.FC = () => {
           </div>
 
           {loading ? (
-            <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Loading institutional metrics...</p></div>
+            <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Aggregating institutional metrics...</p></div>
           ) : institutionalData ? (
             <>
-              <div className="kpi-grid">
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
-                  <div className="kpi-header"><span className="kpi-label">Affiliated Faculty</span><Users size={22} color="#4f46e5" /></div>
-                  <div className="kpi-value">{institutionalData.totalResearchers}</div>
-                  <div className="kpi-subtext">Researchers & Professors</div>
+              {/* Institutional Profile Header Card */}
+              <div className="profile-banner-card">
+                <div className="profile-banner-avatar">
+                  <Building2 size={36} color="#4f46e5" />
                 </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
-                  <div className="kpi-header"><span className="kpi-label">Institutional Papers</span><BookOpen size={22} color="#06b6d4" /></div>
-                  <div className="kpi-value">{institutionalData.totalPublications}</div>
-                  <div className="kpi-subtext">Published works</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
-                  <div className="kpi-header"><span className="kpi-label">Funded Projects</span><FolderGit2 size={22} color="#10b981" /></div>
-                  <div className="kpi-value">{institutionalData.openProjects}</div>
-                  <div className="kpi-subtext">Ongoing initiatives</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
-                  <div className="kpi-header"><span className="kpi-label">External Partnerships</span><Globe size={22} color="#f59e0b" /></div>
-                  <div className="kpi-value">{institutionalData.externalPartnerships}</div>
-                  <div className="kpi-subtext">Inter-institutional alliances</div>
+                <div className="profile-banner-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <h2>{institutionalData.institutionName}</h2>
+                    <span className="scope-badge">Verified Institution #{institutionalData.institutionId}</span>
+                  </div>
+                  <p className="profile-banner-meta">
+                    {institutionalData.city && institutionalData.country ? (
+                      <span>📍 {institutionalData.city}, {institutionalData.country}</span>
+                    ) : (
+                      <span>📍 Academic Campus</span>
+                    )}
+                    {institutionalData.website && (
+                      <a href={institutionalData.website} target="_blank" rel="noreferrer" className="meta-link">
+                        <ExternalLink size={14} /> Official Website
+                      </a>
+                    )}
+                  </p>
                 </div>
               </div>
 
-              {/* Departmental Output Table */}
+              {/* Core Institutional KPIs */}
+              <div className="kpi-grid">
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Affiliated Faculty & Researchers</span>
+                    <Users size={22} color="#4f46e5" />
+                  </div>
+                  <div className="kpi-value">{institutionalData.totalResearchers}</div>
+                  <div className="kpi-subtext">
+                    <UserCheck size={14} color="#4f46e5" /> {institutionalData.facultyCount} Faculty · {institutionalData.studentCount} Students
+                  </div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Repository Publications</span>
+                    <BookOpen size={22} color="#06b6d4" />
+                  </div>
+                  <div className="kpi-value">{institutionalData.totalPublications}</div>
+                  <div className="kpi-subtext">
+                    <Award size={14} color="#06b6d4" /> Authored institutional works
+                  </div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Research Workspaces & Labs</span>
+                    <FolderGit2 size={22} color="#10b981" />
+                  </div>
+                  <div className="kpi-value">{institutionalData.activeWorkspacesCount + institutionalData.laboratoriesCount}</div>
+                  <div className="kpi-subtext">
+                    {institutionalData.activeWorkspacesCount} Workspaces · {institutionalData.laboratoriesCount} Labs
+                  </div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Cross-Institutional Alliances</span>
+                    <Globe size={22} color="#f59e0b" />
+                  </div>
+                  <div className="kpi-value">{institutionalData.crossInstitutionalCollaborations?.length || 0}</div>
+                  <div className="kpi-subtext">
+                    <ArrowUpRight size={14} color="#f59e0b" /> Partner universities
+                  </div>
+                </div>
+              </div>
+
+              {/* Publication Output Trends Year-over-Year */}
+              {institutionalData.publicationTrends && institutionalData.publicationTrends.length > 0 && (
+                <div className="analytics-section">
+                  <div className="section-header">
+                    <div className="section-title">
+                      <TrendingUp size={22} color="#06b6d4" />
+                      Annual Publication Output Velocity ({institutionalData.institutionName})
+                    </div>
+                  </div>
+                  <div className="timeline-bars-grid">
+                    {institutionalData.publicationTrends.map(t => {
+                      const maxCount = Math.max(...institutionalData.publicationTrends.map(x => x.count), 1);
+                      const pct = Math.round((t.count / maxCount) * 100);
+                      return (
+                        <div key={t.year} className="timeline-bar-col">
+                          <div className="timeline-bar-count">{t.count} papers</div>
+                          <div className="timeline-bar-track">
+                            <div className="timeline-bar-fill" style={{ height: `${Math.max(12, pct)}%` }} />
+                          </div>
+                          <div className="timeline-bar-year">{t.year}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* Cross-Institutional Collaborations Grid */}
+              {institutionalData.crossInstitutionalCollaborations && institutionalData.crossInstitutionalCollaborations.length > 0 && (
+                <div className="analytics-section">
+                  <div className="section-header">
+                    <div className="section-title">
+                      <Globe size={22} color="#f59e0b" />
+                      External Institutional Partnerships & Alliances
+                    </div>
+                  </div>
+                  <div className="collab-partners-grid">
+                    {institutionalData.crossInstitutionalCollaborations.map((c, idx) => (
+                      <div key={idx} className="partner-card">
+                        <div className="partner-icon"><Building2 size={24} color="#4f46e5" /></div>
+                        <div className="partner-details">
+                          <h4>{c.targetInstitution}</h4>
+                          <span className="partner-collab-badge">
+                            <Users size={13} /> {c.jointCollaboratorsCount} Joint Collaborative Ties
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Departmental Research Breakdown Table */}
               <div className="analytics-section">
-                <div className="section-header">
+                <div className="section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
                   <div className="section-title">
                     <Building2 size={22} color="#4f46e5" />
-                    Departmental Research Output ({institutionalData.institutionName})
+                    Departmental Research Output Breakdown ({institutionalData.institutionName})
                   </div>
+                  <input
+                    type="text"
+                    className="filter-input"
+                    style={{ minWidth: '220px', padding: '0.45rem 0.8rem', fontSize: '0.9rem' }}
+                    placeholder="Search departments..."
+                    value={deptSearchTerm}
+                    onChange={e => setDeptSearchTerm(e.target.value)}
+                  />
                 </div>
                 <div className="analytics-table-wrapper">
                   <table className="analytics-table" id="table-analytics-breakdown">
@@ -571,34 +706,51 @@ const ResearchAnalyticsDashboard: React.FC = () => {
                         <th>Department</th>
                         <th>Researchers</th>
                         <th>Publications</th>
-                        <th>Active Projects</th>
+                        <th>Research Labs</th>
+                        <th>Productivity Ratio</th>
                         <th>Action</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {institutionalData.departmentBreakdown.map(dept => (
-                        <tr key={dept.departmentId}>
-                          <td><strong>{dept.departmentName}</strong></td>
-                          <td>{dept.researcherCount}</td>
-                          <td>{dept.publicationCount}</td>
-                          <td>{dept.activeProjectsCount}</td>
-                          <td>
-                            <button
-                              className="btn-recalc"
-                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                              onClick={() => {
-                                setDepartmentIdInput(dept.departmentId);
-                                setActiveTab('department');
-                                fetchDepartmentAnalytics(dept.departmentId);
-                              }}
-                            >
-                              View Department
-                            </button>
+                      {filteredDepartments.map(dept => {
+                        const ratio = dept.researchersCount > 0
+                          ? (dept.publicationsCount / dept.researchersCount).toFixed(1)
+                          : '0.0';
+                        return (
+                          <tr key={dept.departmentId}>
+                            <td><strong>{dept.departmentName}</strong></td>
+                            <td>{dept.researchersCount} faculty/students</td>
+                            <td>{dept.publicationsCount} publications</td>
+                            <td>{dept.laboratoriesCount} labs</td>
+                            <td>
+                              <span className="tag-counter" style={{ background: '#e0e7ff', color: '#4338ca' }}>
+                                {ratio} papers / researcher
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn-recalc"
+                                style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
+                                onClick={() => {
+                                  setDepartmentIdInput(dept.departmentId);
+                                  setActiveTab('department');
+                                  fetchDepartmentAnalytics(dept.departmentId);
+                                }}
+                              >
+                                View Department
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {filteredDepartments.length === 0 && (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8' }}>
+                            {institutionalData.departments?.length === 0
+                              ? 'No departmental records enrolled under this institution.'
+                              : 'No departments match your search term.'}
                           </td>
                         </tr>
-                      ))}
-                      {institutionalData.departmentBreakdown.length === 0 && (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', color: '#94a3b8' }}>No departmental breakdown records found.</td></tr>
                       )}
                     </tbody>
                   </table>
@@ -611,7 +763,271 @@ const ResearchAnalyticsDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 3: DEPARTMENTAL ANALYTICS */}
+      {/* =========================================================================
+          TAB 3: TEAM & WORKSPACE VELOCITY VIEW [T-018.4]
+         ========================================================================= */}
+      {activeTab === 'team' && (
+        <div id="panel-analytics-team">
+          <div className="filter-bar">
+            <label style={{ fontWeight: 600, color: '#475569' }}>Select Workspace / Project Team:</label>
+            <select
+              id="select-analytics-workspace"
+              className="filter-select"
+              value={selectedWorkspaceId}
+              onChange={e => {
+                const id = parseInt(e.target.value);
+                setSelectedWorkspaceId(id);
+                fetchTeamAnalytics(id);
+              }}
+            >
+              {workspaces.map(w => (
+                <option key={w.id} value={w.id}>{w.name}</option>
+              ))}
+              {workspaces.length === 0 && <option value={1}>Workspace #1</option>}
+            </select>
+          </div>
+
+          {loading ? (
+            <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Calculating workspace sprint velocity...</p></div>
+          ) : teamData ? (
+            <>
+              {/* Workspace Header Banner */}
+              <div className="profile-banner-card">
+                <div className="profile-banner-avatar" style={{ background: 'rgba(16, 185, 129, 0.12)' }}>
+                  <Shield size={36} color="#10b981" />
+                </div>
+                <div className="profile-banner-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <h2>{teamData.workspaceName}</h2>
+                    <span className="scope-badge" style={{ background: '#dcfce7', color: '#15803d' }}>
+                      Workspace #{teamData.workspaceId}
+                    </span>
+                  </div>
+                  <p className="profile-banner-meta">
+                    <span>Lead: <strong>{teamData.ownerName}</strong></span>
+                    <span>·</span>
+                    <span>{teamData.totalMembersCount} Active Members</span>
+                    {teamData.description && (
+                      <span style={{ display: 'block', width: '100%', marginTop: '0.3rem', color: '#64748b' }}>
+                        {teamData.description}
+                      </span>
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              {/* Core Team Velocity KPIs */}
+              <div className="kpi-grid">
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Active Team Size</span>
+                    <Users size={22} color="#4f46e5" />
+                  </div>
+                  <div className="kpi-value">{teamData.totalMembersCount}</div>
+                  <div className="kpi-subtext">Collaborators & Researchers</div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Task Completion Velocity</span>
+                    <TrendingUp size={22} color="#10b981" />
+                  </div>
+                  <div className="kpi-value">{Math.round(teamData.taskCompletionRate)}%</div>
+                  <div className="kpi-subtext">
+                    <CheckCircle2 size={14} color="#10b981" /> {teamData.completedTasksCount} of {teamData.totalTasksCount} tasks done
+                  </div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Sprint Task Status</span>
+                    <CheckSquare size={22} color="#06b6d4" />
+                  </div>
+                  <div className="kpi-value" style={{ fontSize: '1.6rem' }}>
+                    <span style={{ color: '#10b981' }}>{teamData.completedTasksCount} Done</span> · <span style={{ color: '#06b6d4' }}>{teamData.inProgressTasksCount} In-Prog</span>
+                  </div>
+                  <div className="kpi-subtext">
+                    <Clock size={14} color="#64748b" /> {teamData.pendingTasksCount} Tasks Pending / To-Do
+                  </div>
+                </div>
+
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
+                  <div className="kpi-header">
+                    <span className="kpi-label">Milestones Met</span>
+                    <Award size={22} color="#f59e0b" />
+                  </div>
+                  <div className="kpi-value">{teamData.milestoneTasksCount}</div>
+                  <div className="kpi-subtext">
+                    <Sparkles size={14} color="#f59e0b" /> Key research deliverables
+                  </div>
+                </div>
+              </div>
+
+              {/* Task Velocity Distribution Bar */}
+              {teamData.totalTasksCount > 0 && (
+                <div className="analytics-section">
+                  <div className="section-header">
+                    <div className="section-title">
+                      <TrendingUp size={22} color="#4f46e5" />
+                      Sprint Task Status Distribution ({teamData.totalTasksCount} Total Tasks)
+                    </div>
+                  </div>
+                  <div className="segmented-progress-wrapper">
+                    <div className="segmented-progress-bar">
+                      <div
+                        className="segment segment-done"
+                        style={{ width: `${(teamData.completedTasksCount / teamData.totalTasksCount) * 100}%` }}
+                        title={`Completed: ${teamData.completedTasksCount}`}
+                      />
+                      <div
+                        className="segment segment-inprogress"
+                        style={{ width: `${(teamData.inProgressTasksCount / teamData.totalTasksCount) * 100}%` }}
+                        title={`In Progress: ${teamData.inProgressTasksCount}`}
+                      />
+                      <div
+                        className="segment segment-pending"
+                        style={{ width: `${(teamData.pendingTasksCount / teamData.totalTasksCount) * 100}%` }}
+                        title={`Pending: ${teamData.pendingTasksCount}`}
+                      />
+                    </div>
+                    <div className="segmented-legend">
+                      <span className="legend-item"><span className="legend-dot dot-done" /> Done ({teamData.completedTasksCount})</span>
+                      <span className="legend-item"><span className="legend-dot dot-inprogress" /> In-Progress ({teamData.inProgressTasksCount})</span>
+                      <span className="legend-item"><span className="legend-dot dot-pending" /> Pending / To-Do ({teamData.pendingTasksCount})</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Member Contribution Breakdown Matrix */}
+              <div className="analytics-section">
+                <div className="section-header">
+                  <div className="section-title">
+                    <Users size={22} color="#4f46e5" />
+                    Member Task Contribution & Velocity Matrix ({teamData.workspaceName})
+                  </div>
+                </div>
+                <div className="analytics-table-wrapper">
+                  <table className="analytics-table">
+                    <thead>
+                      <tr>
+                        <th>Member Name</th>
+                        <th>Role</th>
+                        <th>Assigned Tasks</th>
+                        <th>Completed Tasks</th>
+                        <th>Completion Velocity</th>
+                        <th>Sprint Share</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {teamData.memberContributions?.map(m => {
+                        const rateColor = m.taskCompletionRate >= 70 ? '#10b981' : m.taskCompletionRate >= 40 ? '#06b6d4' : '#f59e0b';
+                        return (
+                          <tr key={m.userId}>
+                            <td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                <div className="member-avatar-mini">{m.fullName.charAt(0)}</div>
+                                <strong>{m.fullName}</strong>
+                              </div>
+                            </td>
+                            <td><span className="tag-counter">{m.roleInWorkspace || 'Contributor'}</span></td>
+                            <td>{m.assignedTasksCount}</td>
+                            <td>{m.completedTasksCount}</td>
+                            <td style={{ width: '180px' }}>
+                              <div className="progress-container">
+                                <div className="progress-bar-bg">
+                                  <div
+                                    className="progress-bar-fill"
+                                    style={{ width: `${Math.min(100, m.taskCompletionRate)}%`, background: rateColor }}
+                                  />
+                                </div>
+                                <span className="progress-label">{Math.round(m.taskCompletionRate)}%</span>
+                              </div>
+                            </td>
+                            <td style={{ width: '160px' }}>
+                              <div className="progress-container">
+                                <div className="progress-bar-bg">
+                                  <div
+                                    className="progress-bar-fill"
+                                    style={{ width: `${Math.min(100, m.contributionPercentage)}%`, background: 'linear-gradient(90deg, #6366f1, #a855f7)' }}
+                                  />
+                                </div>
+                                <span className="progress-label">{Math.round(m.contributionPercentage)}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                      {(!teamData.memberContributions || teamData.memberContributions.length === 0) && (
+                        <tr>
+                          <td colSpan={6} style={{ textAlign: 'center', color: '#94a3b8' }}>
+                            No team member task assignments registered in this workspace.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Recent Tasks Velocity Log */}
+              {teamData.recentTasks && teamData.recentTasks.length > 0 && (
+                <div className="analytics-section">
+                  <div className="section-header">
+                    <div className="section-title">
+                      <Clock size={22} color="#06b6d4" />
+                      Recent Sprint Activity & Task Log
+                    </div>
+                  </div>
+                  <div className="analytics-table-wrapper">
+                    <table className="analytics-table">
+                      <thead>
+                        <tr>
+                          <th>Task Title</th>
+                          <th>Status</th>
+                          <th>Assignee</th>
+                          <th>Due Date</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {teamData.recentTasks.map(t => {
+                          const statusClass = t.status === 'Done' || t.status === 'Completed'
+                            ? 'task-done'
+                            : t.status === 'InProgress'
+                            ? 'task-prog'
+                            : 'task-todo';
+                          return (
+                            <tr key={t.taskId}>
+                              <td><strong>{t.title}</strong></td>
+                              <td><span className={`status-pill ${statusClass}`}>{t.status}</span></td>
+                              <td>{t.assigneeName || 'Unassigned'}</td>
+                              <td>
+                                {t.dueDate ? (
+                                  <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: '#64748b' }}>
+                                    <Calendar size={13} /> {new Date(t.dueDate).toLocaleDateString()}
+                                  </span>
+                                ) : (
+                                  <span style={{ color: '#94a3b8' }}>No deadline set</span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+            </>
+          ) : (
+            <div className="analytics-empty">No workspace team metrics found for this selection.</div>
+          )}
+        </div>
+      )}
+
+      {/* =========================================================================
+          TAB 4: DEPARTMENTAL ANALYTICS
+         ========================================================================= */}
       {activeTab === 'department' && (
         <div id="panel-analytics-department">
           <div className="filter-bar">
@@ -636,70 +1052,41 @@ const ResearchAnalyticsDashboard: React.FC = () => {
             <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Analyzing department statistics...</p></div>
           ) : departmentData ? (
             <>
-              <div className="kpi-grid">
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
-                  <div className="kpi-header"><span className="kpi-label">Department Faculty</span><Users size={22} color="#4f46e5" /></div>
-                  <div className="kpi-value">{departmentData.researchersCount}</div>
-                  <div className="kpi-subtext">{departmentData.departmentName}</div>
+              <div className="profile-banner-card">
+                <div className="profile-banner-avatar" style={{ background: 'rgba(245, 158, 11, 0.12)' }}>
+                  <Layers size={36} color="#f59e0b" />
                 </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
-                  <div className="kpi-header"><span className="kpi-label">Publications</span><BookOpen size={22} color="#06b6d4" /></div>
-                  <div className="kpi-value">{departmentData.publicationsCount}</div>
-                  <div className="kpi-subtext">Department output</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
-                  <div className="kpi-header"><span className="kpi-label">Projects</span><FolderGit2 size={22} color="#10b981" /></div>
-                  <div className="kpi-value">{departmentData.activeProjectsCount}</div>
-                  <div className="kpi-subtext">Collaborative initiatives</div>
+                <div className="profile-banner-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <h2>{departmentData.departmentName}</h2>
+                    <span className="scope-badge">Department #{departmentData.departmentId}</span>
+                  </div>
+                  <p className="profile-banner-meta">
+                    <span>Affiliated with <strong>{departmentData.institutionName || 'University'}</strong></span>
+                  </p>
                 </div>
               </div>
 
-              {/* Active Researchers List */}
-              <div className="analytics-section">
-                <div className="section-header">
-                  <div className="section-title">
-                    <Users size={22} color="#4f46e5" />
-                    Top Active Researchers ({departmentData.departmentName})
-                  </div>
+              <div className="kpi-grid">
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
+                  <div className="kpi-header"><span className="kpi-label">Department Faculty</span><Users size={22} color="#4f46e5" /></div>
+                  <div className="kpi-value">{departmentData.totalResearchers}</div>
+                  <div className="kpi-subtext">{departmentData.facultyCount} Faculty · {departmentData.studentCount} Students</div>
                 </div>
-                <div className="analytics-table-wrapper">
-                  <table className="analytics-table">
-                    <thead>
-                      <tr>
-                        <th>Researcher Name</th>
-                        <th>Role</th>
-                        <th>Publications</th>
-                        <th>Active Projects</th>
-                        <th>Profile Action</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {departmentData.activeResearchers.map(r => (
-                        <tr key={r.userId}>
-                          <td><strong>{r.fullName}</strong></td>
-                          <td><span className="tag-counter">{r.role}</span></td>
-                          <td>{r.publicationCount}</td>
-                          <td>{r.activeProjectsCount}</td>
-                          <td>
-                            <button
-                              className="btn-recalc"
-                              style={{ padding: '0.4rem 0.8rem', fontSize: '0.85rem' }}
-                              onClick={() => {
-                                setResearcherIdInput(r.userId.toString());
-                                setActiveTab('researcher');
-                                fetchResearcherAnalytics(r.userId);
-                              }}
-                            >
-                              View Metrics
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                      {departmentData.activeResearchers.length === 0 && (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', color: '#94a3b8' }}>No researcher profiles recorded in this department.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
+                  <div className="kpi-header"><span className="kpi-label">Publications</span><BookOpen size={22} color="#06b6d4" /></div>
+                  <div className="kpi-value">{departmentData.totalPublications}</div>
+                  <div className="kpi-subtext">Department research output</div>
+                </div>
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
+                  <div className="kpi-header"><span className="kpi-label">Laboratories & Facilities</span><Building2 size={22} color="#10b981" /></div>
+                  <div className="kpi-value">{departmentData.laboratoriesCount}</div>
+                  <div className="kpi-subtext">Active department research labs</div>
+                </div>
+                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
+                  <div className="kpi-header"><span className="kpi-label">Active Collaborative Projects</span><FolderGit2 size={22} color="#f59e0b" /></div>
+                  <div className="kpi-value">{departmentData.activeProjectsCount}</div>
+                  <div className="kpi-subtext">Workspaces involving department members</div>
                 </div>
               </div>
             </>
@@ -709,7 +1096,9 @@ const ResearchAnalyticsDashboard: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 4: RESEARCHER PROFILE METRICS */}
+      {/* =========================================================================
+          TAB 5: RESEARCHER PROFILE METRICS
+         ========================================================================= */}
       {activeTab === 'researcher' && (
         <div id="panel-analytics-researcher">
           <div className="filter-bar">
@@ -734,187 +1123,74 @@ const ResearchAnalyticsDashboard: React.FC = () => {
             <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Analyzing researcher output...</p></div>
           ) : researcherData ? (
             <>
+              <div className="profile-banner-card">
+                <div className="profile-banner-avatar" style={{ background: 'rgba(79, 70, 229, 0.12)' }}>
+                  <Users size={36} color="#4f46e5" />
+                </div>
+                <div className="profile-banner-info">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap' }}>
+                    <h2>{researcherData.fullName}</h2>
+                    <span className="scope-badge">{researcherData.role}</span>
+                  </div>
+                  <p className="profile-banner-meta">
+                    <span>{researcherData.department || 'General Department'} · {researcherData.institution || 'University'}</span>
+                  </p>
+                  {researcherData.bio && <p style={{ margin: '0.4rem 0 0 0', color: '#64748b' }}>{researcherData.bio}</p>}
+                </div>
+              </div>
+
               <div className="kpi-grid">
                 <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
                   <div className="kpi-header"><span className="kpi-label">Publications</span><BookOpen size={22} color="#4f46e5" /></div>
-                  <div className="kpi-value">{researcherData.publicationCount}</div>
+                  <div className="kpi-value">{researcherData.totalPublications}</div>
                   <div className="kpi-subtext">Authored & Co-Authored</div>
                 </div>
                 <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
                   <div className="kpi-header"><span className="kpi-label">Collaborators</span><Users size={22} color="#10b981" /></div>
-                  <div className="kpi-value">{researcherData.activeCollaborations}</div>
+                  <div className="kpi-value">{researcherData.collaboratorsCount}</div>
                   <div className="kpi-subtext">Connected researchers</div>
                 </div>
                 <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
                   <div className="kpi-header"><span className="kpi-label">Active Workspaces</span><FolderGit2 size={22} color="#06b6d4" /></div>
-                  <div className="kpi-value">{researcherData.activeWorkspaces}</div>
+                  <div className="kpi-value">{researcherData.activeProjectsCount}</div>
                   <div className="kpi-subtext">Participating teams</div>
                 </div>
                 <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
                   <div className="kpi-header"><span className="kpi-label">Task Velocity</span><TrendingUp size={22} color="#f59e0b" /></div>
                   <div className="kpi-value">{Math.round(researcherData.taskCompletionRate)}%</div>
-                  <div className="kpi-subtext">{researcherData.completedTasksCount} / {researcherData.assignedTasksCount} tasks done</div>
+                  <div className="kpi-subtext">{researcherData.completedTasksCount} / {researcherData.totalAssignedTasks} tasks completed</div>
                 </div>
               </div>
 
-              {/* Recent Publications */}
-              <div className="analytics-section">
-                <div className="section-header">
-                  <div className="section-title">
-                    <BookOpen size={22} color="#4f46e5" />
-                    Publications by {researcherData.fullName}
+              {/* Publication Output Timeline */}
+              {researcherData.publicationsTimeline && researcherData.publicationsTimeline.length > 0 && (
+                <div className="analytics-section">
+                  <div className="section-header">
+                    <div className="section-title">
+                      <BookOpen size={22} color="#4f46e5" />
+                      Publication Timeline
+                    </div>
+                  </div>
+                  <div className="timeline-bars-grid">
+                    {researcherData.publicationsTimeline.map(t => {
+                      const maxCount = Math.max(...researcherData.publicationsTimeline.map(x => x.count), 1);
+                      const pct = Math.round((t.count / maxCount) * 100);
+                      return (
+                        <div key={t.year} className="timeline-bar-col">
+                          <div className="timeline-bar-count">{t.count} papers</div>
+                          <div className="timeline-bar-track">
+                            <div className="timeline-bar-fill" style={{ height: `${Math.max(14, pct)}%` }} />
+                          </div>
+                          <div className="timeline-bar-year">{t.year}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-                <div className="analytics-table-wrapper">
-                  <table className="analytics-table">
-                    <thead>
-                      <tr>
-                        <th>Title</th>
-                        <th>Venue / Journal</th>
-                        <th>Year</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {researcherData.recentPublications.map(p => (
-                        <tr key={p.id}>
-                          <td><strong>{p.title}</strong></td>
-                          <td>{p.journalOrConference || 'Scholarly Publication'}</td>
-                          <td>{p.publicationYear}</td>
-                        </tr>
-                      ))}
-                      {researcherData.recentPublications.length === 0 && (
-                        <tr><td colSpan={3} style={{ textAlign: 'center', color: '#94a3b8' }}>No publications registered yet.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Collaborator Network Edge List */}
-              <div className="analytics-section">
-                <div className="section-header">
-                  <div className="section-title">
-                    <Globe size={22} color="#10b981" />
-                    Collaborator Network
-                  </div>
-                </div>
-                <div className="tags-cloud">
-                  {researcherData.collaboratorNetwork.map(c => (
-                    <span key={c.userId} className="topic-tag-chip">
-                      <strong>{c.fullName}</strong>
-                      <span className="tag-counter">{c.institution || 'University'}</span>
-                    </span>
-                  ))}
-                  {researcherData.collaboratorNetwork.length === 0 && (
-                    <p style={{ color: '#94a3b8' }}>No active collaboration edges found.</p>
-                  )}
-                </div>
-              </div>
+              )}
             </>
           ) : (
             <div className="analytics-empty">No researcher profile found.</div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 5: TEAM & WORKSPACE VELOCITY */}
-      {activeTab === 'team' && (
-        <div id="panel-analytics-team">
-          <div className="filter-bar">
-            <label style={{ fontWeight: 600, color: '#475569' }}>Select Workspace:</label>
-            <select
-              id="select-analytics-workspace"
-              className="filter-select"
-              value={selectedWorkspaceId}
-              onChange={e => {
-                const id = parseInt(e.target.value);
-                setSelectedWorkspaceId(id);
-                fetchTeamAnalytics(id);
-              }}
-            >
-              {workspaces.map(w => (
-                <option key={w.id} value={w.id}>{w.name}</option>
-              ))}
-              {workspaces.length === 0 && <option value={1}>Workspace #1</option>}
-            </select>
-          </div>
-
-          {loading ? (
-            <div className="analytics-loading"><RefreshCw size={36} className="spinner-icon" /><p>Calculating workspace velocity...</p></div>
-          ) : teamData ? (
-            <>
-              <div className="kpi-grid">
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#4f46e5' }}>
-                  <div className="kpi-header"><span className="kpi-label">Team Members</span><Users size={22} color="#4f46e5" /></div>
-                  <div className="kpi-value">{teamData.membersCount}</div>
-                  <div className="kpi-subtext">Active collaborators</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#10b981' }}>
-                  <div className="kpi-header"><span className="kpi-label">Completed Tasks</span><CheckCircle2 size={22} color="#10b981" /></div>
-                  <div className="kpi-value">{teamData.completedTasks}</div>
-                  <div className="kpi-subtext">of {teamData.totalTasks} total tasks</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#06b6d4' }}>
-                  <div className="kpi-header"><span className="kpi-label">Completion Velocity</span><TrendingUp size={22} color="#06b6d4" /></div>
-                  <div className="kpi-value">{Math.round(teamData.completionRate)}%</div>
-                  <div className="kpi-subtext">Overall sprint progress</div>
-                </div>
-                <div className="kpi-card" style={{ ['--kpi-accent' as string]: '#f59e0b' }}>
-                  <div className="kpi-header"><span className="kpi-label">Milestones Met</span><Award size={22} color="#f59e0b" /></div>
-                  <div className="kpi-value">{teamData.milestoneVelocity}</div>
-                  <div className="kpi-subtext">Key research milestones</div>
-                </div>
-              </div>
-
-              {/* Member Contribution Breakdown */}
-              <div className="analytics-section">
-                <div className="section-header">
-                  <div className="section-title">
-                    <Users size={22} color="#4f46e5" />
-                    Member Task Breakdown ({teamData.workspaceName})
-                  </div>
-                </div>
-                <div className="analytics-table-wrapper">
-                  <table className="analytics-table">
-                    <thead>
-                      <tr>
-                        <th>Member Name</th>
-                        <th>Role</th>
-                        <th>Assigned Tasks</th>
-                        <th>Completed Tasks</th>
-                        <th>Progress</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {teamData.memberContributions.map(m => {
-                        const pct = m.assignedTasksCount > 0 ? (m.completedTasksCount * 100) / m.assignedTasksCount : 0;
-                        return (
-                          <tr key={m.userId}>
-                            <td><strong>{m.fullName}</strong></td>
-                            <td><span className="tag-counter">{m.role}</span></td>
-                            <td>{m.assignedTasksCount}</td>
-                            <td>{m.completedTasksCount}</td>
-                            <td style={{ width: '220px' }}>
-                              <div className="progress-container">
-                                <div className="progress-bar-bg">
-                                  <div className="progress-bar-fill" style={{ width: `${Math.min(100, pct)}%` }} />
-                                </div>
-                                <span className="progress-label">{Math.round(pct)}%</span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                      {teamData.memberContributions.length === 0 && (
-                        <tr><td colSpan={5} style={{ textAlign: 'center', color: '#94a3b8' }}>No member contributions recorded for this workspace.</td></tr>
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </>
-          ) : (
-            <div className="analytics-empty">No workspace analytics recorded.</div>
           )}
         </div>
       )}

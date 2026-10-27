@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("ResCollab.Api")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+e3b78d6bd19335c349cdc43ff292c268f45a5b49")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f30ac30353aca0902e252a5a4f1760e2d18fa79c")]
 [assembly: System.Reflection.AssemblyProductAttribute("ResCollab.Api")]
 [assembly: System.Reflection.AssemblyTitleAttribute("ResCollab.Api")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
