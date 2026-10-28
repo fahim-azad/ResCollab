@@ -923,7 +923,231 @@
   white-space: nowrap;
 }
 
-/* AI RECOMMENDATIONS PREVIEW GRID */
+/* =========================================================================
+   PROJECTS SUMMARY GRID & CARDS [T-029.4]
+   ========================================================================= */
+.projects-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
+  gap: 1.15rem;
+}
+
+.project-summary-card {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1.3rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.project-summary-card:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.06);
+  transform: translateY(-2px);
+}
+
+.project-summary-card.card-supervised {
+  border-left: 4px solid #0d9488;
+}
+
+.project-summary-card.card-applied {
+  border-left: 4px solid #2563eb;
+}
+
+.project-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.project-role-badge-row {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.project-role-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.role-supervisor {
+  background: #ccfbf1;
+  color: #0f766e;
+}
+
+.role-applicant {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+
+.project-status-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.2rem 0.55rem;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.status-recruiting {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-closed {
+  background: #f1f5f9;
+  color: #64748b;
+}
+
+.status-pending {
+  background: #fef3c7;
+  color: #b45309;
+}
+
+.status-accepted {
+  background: #dcfce7;
+  color: #15803d;
+}
+
+.status-rejected {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.funded-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 0.18rem 0.45rem;
+  border-radius: 6px;
+  border: 1px solid #a7f3d0;
+}
+
+.project-date-stamp {
+  font-size: 0.74rem;
+  color: #94a3b8;
+}
+
+.project-title {
+  font-size: 1.02rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0;
+  line-height: 1.35;
+}
+
+.project-desc {
+  font-size: 0.84rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.45;
+}
+
+.project-meta-strip {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.meta-info-item {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.project-skills-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.project-skill-pill {
+  background: #f1f5f9;
+  color: #334155;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.18rem 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.project-card-footer {
+  margin-top: auto;
+  padding-top: 0.4rem;
+}
+
+.btn-project-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: #ffffff;
+  border: 1px solid #cbd5e1;
+  color: #0f172a;
+  padding: 0.45rem 0.85rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-project-action:hover {
+  background: #2563eb;
+  color: #ffffff;
+  border-color: #2563eb;
+}
+
+/* =========================================================================
+   AI RECOMMENDATIONS PREVIEW GRID & STRIP [T-029.4]
+   ========================================================================= */
+.rec-summary-ribbon {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1.15rem;
+}
+
+.rec-summary-metrics-strip {
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  flex-wrap: wrap;
+}
+
+.rec-metric-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 0.3rem 0.65rem;
+  font-size: 0.76rem;
+  color: #475569;
+}
+
+.rec-category-tabs {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .recommendations-preview-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
@@ -951,6 +1175,35 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.rec-top-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.btn-dismiss-rec {
+  background: transparent;
+  border: 1px solid transparent;
+  color: #94a3b8;
+  cursor: pointer;
+  padding: 0.25rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.btn-dismiss-rec:hover {
+  color: #ef4444;
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.rec-card-bottom-actions {
+  margin-top: 0.3rem;
 }
 
 .rec-category-badge {
@@ -1036,6 +1289,186 @@
 
 .btn-view-recommendation:hover {
   background: #2563eb;
+}
+
+/* =========================================================================
+   NOTIFICATIONS SUMMARY WIDGET & ROWS [T-029.4]
+   ========================================================================= */
+.notifications-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.notification-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.85rem;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 0.9rem 1.1rem;
+  cursor: pointer;
+  transition: all 0.2s;
+  position: relative;
+}
+
+.notification-summary-row:hover {
+  background: #ffffff;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+}
+
+.notification-summary-row.row-unread {
+  background: #ffffff;
+  border-left: 4px solid #2563eb;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.06);
+}
+
+.notif-icon-bubble {
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.row-unread .notif-icon-bubble {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+}
+
+.notif-content-col {
+  flex: 1;
+  min-width: 0;
+}
+
+.notif-header-line {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin-bottom: 0.2rem;
+}
+
+.unread-dot-indicator {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2563eb;
+  flex-shrink: 0;
+}
+
+.notif-type-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #64748b;
+  text-transform: uppercase;
+}
+
+.notif-time-ago {
+  font-size: 0.72rem;
+  color: #94a3b8;
+  margin-left: auto;
+}
+
+.notif-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin: 0 0 0.15rem 0;
+}
+
+.row-unread .notif-title {
+  color: #1e3a8a;
+}
+
+.notif-message-text {
+  font-size: 0.8rem;
+  color: #475569;
+  margin: 0;
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.btn-mark-single-read {
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  color: #475569;
+  cursor: pointer;
+  padding: 0.3rem;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: all 0.2s;
+}
+
+.btn-mark-single-read:hover {
+  background: #dcfce7;
+  color: #15803d;
+  border-color: #86efac;
+}
+
+.btn-mark-all-read {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  color: #1d4ed8;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.65rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-mark-all-read:hover:not(:disabled) {
+  background: #dbeafe;
+}
+
+.btn-mark-all-read:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.badge-count-unread {
+  background: #fee2e2;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
+.widget-card-bottom-link {
+  margin-top: 1rem;
+  padding-top: 0.8rem;
+  border-top: 1px solid #f1f5f9;
+  text-align: center;
+}
+
+.btn-view-all-notifications {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: none;
+  color: #2563eb;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.btn-view-all-notifications:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
 }
 
 /* COMMUNITY SUMMARY LIST */

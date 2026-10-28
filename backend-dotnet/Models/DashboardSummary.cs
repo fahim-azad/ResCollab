@@ -75,11 +75,18 @@ namespace ResCollab.Api.Models
         // Active Workspaces & Tasks
         public List<WorkspaceSummaryItemDto> ActiveWorkspaces { get; set; } = new List<WorkspaceSummaryItemDto>();
 
+        // Project Summaries (Supervised & Applied Projects) [T-029.4]
+        public List<ProjectSummaryDto> ProjectSummaries { get; set; } = new List<ProjectSummaryDto>();
+
         // Imminent Deadlines
         public List<UpcomingDeadlineDto> UpcomingDeadlines { get; set; } = new List<UpcomingDeadlineDto>();
 
-        // AI Recommendations Preview
+        // AI Recommendations Preview & Meta Summary [T-029.4]
         public List<UserRecommendationRecord> TopRecommendations { get; set; } = new List<UserRecommendationRecord>();
+        public RecommendationMetaSummaryDto? RecommendationSummary { get; set; }
+
+        // Recent Notifications & Alerts [T-029.4]
+        public List<NotificationSummaryDto> RecentNotifications { get; set; } = new List<NotificationSummaryDto>();
 
         // Recent Community Discussions
         public List<CommunityPostSummaryDto> RecentDiscussions { get; set; } = new List<CommunityPostSummaryDto>();
@@ -129,5 +136,43 @@ namespace ResCollab.Api.Models
         public int ReactionsCount { get; set; }
         public int CommentsCount { get; set; }
         public DateTime CreatedAt { get; set; }
+    }
+
+    public class ProjectSummaryDto
+    {
+        public int ProjectId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public string? Department { get; set; }
+        public string Role { get; set; } = "Supervisor"; // "Supervisor", "Applicant"
+        public string Status { get; set; } = "Recruiting"; // "Recruiting", "Closed", "Pending", "Accepted", "Rejected"
+        public int ApplicantsCount { get; set; }
+        public int MaxPositions { get; set; }
+        public bool IsFunded { get; set; }
+        public string? SupervisorName { get; set; }
+        public string? RequiredSkills { get; set; }
+        public DateTime CreatedOrAppliedAt { get; set; }
+    }
+
+    public class RecommendationMetaSummaryDto
+    {
+        public int TotalActiveCount { get; set; }
+        public int HighConfidenceCount { get; set; } // Score >= 85
+        public int SupervisorsCount { get; set; }
+        public int TeammatesCount { get; set; }
+        public int ProjectsCount { get; set; }
+        public int PublicationsCount { get; set; }
+    }
+
+    public class NotificationSummaryDto
+    {
+        public int NotificationId { get; set; }
+        public string Title { get; set; } = string.Empty;
+        public string Message { get; set; } = string.Empty;
+        public string? Type { get; set; }
+        public int? RelatedEntityId { get; set; }
+        public bool IsRead { get; set; }
+        public DateTime CreatedAt { get; set; }
+        public string? ActionUrl { get; set; }
     }
 }

@@ -24,7 +24,10 @@ import {
   X,
   Flame,
   GraduationCap,
-  Building2
+  Building2,
+  Briefcase,
+  Check,
+  CheckCheck
 } from 'lucide-react';
 import './PersonalizedDashboard.css';
 
@@ -53,6 +56,21 @@ export interface WorkspaceSummaryItem {
   nextPendingTask?: string;
 }
 
+export interface ProjectSummaryItem {
+  projectId: number;
+  title: string;
+  description: string;
+  department?: string;
+  role: string; // "Supervisor", "Applicant"
+  status: string; // "Recruiting", "Closed", "Pending", "Accepted", "Rejected"
+  applicantsCount: number;
+  maxPositions: number;
+  isFunded: boolean;
+  supervisorName?: string;
+  requiredSkills?: string;
+  createdOrAppliedAt: string;
+}
+
 export interface UpcomingDeadlineItem {
   title: string;
   deadlineType: string; // "Task", "Milestone", "CallForPapers", "Conference"
@@ -76,6 +94,26 @@ export interface TopRecommendationItem {
   recommendationReason?: string;
   status: string;
   generatedAt: string;
+}
+
+export interface RecommendationMetaSummary {
+  totalActiveCount: number;
+  highConfidenceCount: number;
+  supervisorsCount: number;
+  teammatesCount: number;
+  projectsCount: number;
+  publicationsCount: number;
+}
+
+export interface NotificationSummaryItem {
+  notificationId: number;
+  title: string;
+  message: string;
+  type?: string;
+  relatedEntityId?: number;
+  isRead: boolean;
+  createdAt: string;
+  actionUrl?: string;
 }
 
 export interface CommunityPostSummary {
@@ -115,8 +153,11 @@ export interface PersonalizedDashboardData {
   profileCompletionPercentage: number;
   metrics: DashboardMetrics;
   activeWorkspaces: WorkspaceSummaryItem[];
+  projectSummaries: ProjectSummaryItem[];
   upcomingDeadlines: UpcomingDeadlineItem[];
   topRecommendations: TopRecommendationItem[];
+  recommendationSummary?: RecommendationMetaSummary;
+  recentNotifications: NotificationSummaryItem[];
   recentDiscussions: CommunityPostSummary[];
   recentActivities: PersonalizedActivityItem[];
 }
@@ -131,8 +172,15 @@ export const PersonalizedDashboard: React.FC = () => {
   const [refreshing, setRefreshing] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Deadline Filter Tabs ("all", "tasks", "cfps", "conferences")
+  // Filter Tabs
   const [deadlineFilter, setDeadlineFilter] = useState<'all' | 'tasks' | 'cfps' | 'conferences'>('all');
+  const [projectFilter, setProjectFilter] = useState<'all' | 'supervised' | 'applied'>('all');
+  const [recCategoryFilter, setRecCategoryFilter] = useState<string>('all');
+
+  // Interactive Action States
+  const [markingNotificationId, setMarkingNotificationId] = useState<number | null>(null);
+  const [markingAllNotifs, setMarkingAllNotifs] = useState<boolean>(false);
+  const [dismissingRecId, setDismissingRecId] = useState<number | null>(null);
 
   // Modals
   const [showPreferencesModal, setShowPreferencesModal] = useState<boolean>(false);
@@ -213,10 +261,12 @@ export const PersonalizedDashboard: React.FC = () => {
           // Initialize default layout if none returned
           setPreferences([
             { widgetKey: 'Workspaces', isVisible: true, displayOrder: 1 },
-            { widgetKey: 'Deadlines', isVisible: true, displayOrder: 2 },
-            { widgetKey: 'Recommendations', isVisible: true, displayOrder: 3 },
-            { widgetKey: 'Community', isVisible: true, displayOrder: 4 },
-            { widgetKey: 'ActivityLog', isVisible: true, displayOrder: 5 }
+            { widgetKey: 'Projects', isVisible: true, displayOrder: 2 },
+            { widgetKey: 'Deadlines', isVisible: true, displayOrder: 3 },
+            { widgetKey: 'Recommendations', isVisible: true, displayOrder: 4 },
+            { widgetKey: 'Notifications', isVisible: true, displayOrder: 5 },
+            { widgetKey: 'Community', isVisible: true, displayOrder: 6 },
+            { widgetKey: 'ActivityLog', isVisible: true, displayOrder: 7 }
           ]);
         }
       }
@@ -291,7 +341,6 @@ export const PersonalizedDashboard: React.FC = () => {
       }
 
       const createdItem: PersonalizedActivityItem = await res.json();
-      // Prepend to current activity list
       if (dashboardData) {
         setDashboardData({
           ...dashboardData,
@@ -309,6 +358,121 @@ export const PersonalizedDashboard: React.FC = () => {
       alert(msg);
     } finally {
       setSubmittingActivity(false);
+    }
+  };
+
+  // Dismiss Recommendation Action [T-029.4]
+  const handleDismissRecommendation = async (recId: number) => {
+    setDismissingRecId(recId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/recommendations/${recId}/dismiss`, {
+        method: 'POST',
+        headers: getAuthHeader()
+      });
+
+      if (res.ok) {
+        if (dashboardData) {
+          const updatedRecs = dashboardData.topRecommendations.filter((r) => r.id !== recId);
+          setDashboardData({
+            ...dashboardData,
+            topRecommendations: updatedRecs,
+            recommendationSummary: dashboardData.recommendationSummary
+              ? {
+                  ...dashboardData.recommendationSummary,
+                  totalActiveCount: Math.max(0, dashboardData.recommendationSummary.totalActiveCount - 1)
+                }
+              : undefined
+          });
+        }
+        showToast('Recommendation dismissed.');
+      }
+    } catch (err) {
+      console.error('Error dismissing recommendation:', err);
+    } finally {
+      setDismissingRecId(null);
+    }
+  };
+
+  // Accept Recommendation Action [T-029.4]
+  const handleAcceptRecommendation = async (rec: TopRecommendationItem) => {
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/recommendations/${rec.id}/accept`, {
+        method: 'POST',
+        headers: getAuthHeader()
+      });
+
+      if (res.ok) {
+        showToast(`Connected with ${rec.title}!`);
+        if (rec.category.toLowerCase() === 'supervisor' || rec.category.toLowerCase() === 'teammate') {
+          navigate(`/profile/${rec.targetEntityId}`);
+        } else {
+          navigate('/recommendations');
+        }
+      }
+    } catch (err) {
+      console.error('Error accepting recommendation:', err);
+    }
+  };
+
+  // Mark Single Notification as Read [T-029.4]
+  const handleMarkNotificationRead = async (notifId: number) => {
+    setMarkingNotificationId(notifId);
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/notifications/${notifId}/read`, {
+        method: 'POST',
+        headers: getAuthHeader()
+      });
+
+      if (res.ok) {
+        if (dashboardData) {
+          const updated = dashboardData.recentNotifications.map((n) =>
+            n.notificationId === notifId ? { ...n, isRead: true } : n
+          );
+          setDashboardData({
+            ...dashboardData,
+            recentNotifications: updated,
+            metrics: {
+              ...dashboardData.metrics,
+              unreadNotificationsCount: Math.max(0, dashboardData.metrics.unreadNotificationsCount - 1)
+            }
+          });
+        }
+        showToast('Notification marked as read.');
+      }
+    } catch (err) {
+      console.error('Error marking notification read:', err);
+    } finally {
+      setMarkingNotificationId(null);
+    }
+  };
+
+  // Mark All Notifications as Read [T-029.4]
+  const handleMarkAllNotificationsRead = async () => {
+    setMarkingAllNotifs(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/dashboard/notifications/read-all`, {
+        method: 'POST',
+        headers: getAuthHeader()
+      });
+
+      if (res.ok) {
+        if (dashboardData) {
+          const updated = dashboardData.recentNotifications.map((n) => ({ ...n, isRead: true }));
+          setDashboardData({
+            ...dashboardData,
+            recentNotifications: updated,
+            metrics: {
+              ...dashboardData.metrics,
+              unreadNotificationsCount: 0
+            }
+          });
+        }
+        showToast('All notifications marked as read.');
+      }
+    } catch (err) {
+      console.error('Error marking all notifications read:', err);
+    } finally {
+      setMarkingAllNotifs(false);
     }
   };
 
@@ -336,6 +500,32 @@ export const PersonalizedDashboard: React.FC = () => {
     }
     return dashboardData.upcomingDeadlines;
   }, [dashboardData, deadlineFilter]);
+
+  // Filtered Projects [T-029.4]
+  const filteredProjects = useMemo(() => {
+    if (!dashboardData?.projectSummaries) return [];
+    if (projectFilter === 'all') return dashboardData.projectSummaries;
+    if (projectFilter === 'supervised') {
+      return dashboardData.projectSummaries.filter(
+        (p) => (p.role || (p as any).Role)?.toLowerCase() === 'supervisor'
+      );
+    }
+    if (projectFilter === 'applied') {
+      return dashboardData.projectSummaries.filter(
+        (p) => (p.role || (p as any).Role)?.toLowerCase() === 'applicant'
+      );
+    }
+    return dashboardData.projectSummaries;
+  }, [dashboardData, projectFilter]);
+
+  // Filtered Recommendations [T-029.4]
+  const filteredRecommendations = useMemo(() => {
+    if (!dashboardData?.topRecommendations) return [];
+    if (recCategoryFilter === 'all') return dashboardData.topRecommendations;
+    return dashboardData.topRecommendations.filter((r) =>
+      r.category.toLowerCase().includes(recCategoryFilter.toLowerCase())
+    );
+  }, [dashboardData, recCategoryFilter]);
 
   // Greeting helper
   const getGreeting = () => {
@@ -375,10 +565,28 @@ export const PersonalizedDashboard: React.FC = () => {
         return <Bookmark size={16} className="activity-icon-amber" />;
       case 'postcreated':
         return <MessageCircle size={16} className="activity-icon-purple" />;
+      case 'recommendationaccepted':
+        return <Award size={16} className="activity-icon-emerald" />;
       case 'profileactivated':
         return <Award size={16} className="activity-icon-emerald" />;
       default:
         return <Sparkles size={16} className="activity-icon-teal" />;
+    }
+  };
+
+  // Notification Type Icon Helper
+  const renderNotificationIcon = (type?: string) => {
+    switch (type?.toLowerCase()) {
+      case 'connection':
+        return <Users size={16} className="notif-icon text-teal" />;
+      case 'project':
+        return <Briefcase size={16} className="notif-icon text-blue" />;
+      case 'workspace':
+        return <FolderGit2 size={16} className="notif-icon text-purple" />;
+      case 'idea':
+        return <Sparkles size={16} className="notif-icon text-amber" />;
+      default:
+        return <Bell size={16} className="notif-icon text-rose" />;
     }
   };
 
@@ -640,7 +848,11 @@ export const PersonalizedDashboard: React.FC = () => {
             <div
               className="kpi-card"
               id="kpi-card-notifications"
-              onClick={() => navigate('/notifications')}
+              onClick={() => {
+                const el = document.getElementById('widget-notifications-section');
+                if (el) el.scrollIntoView({ behavior: 'smooth' });
+                else navigate('/notifications');
+              }}
               tabIndex={0}
               role="button"
             >
@@ -685,6 +897,14 @@ export const PersonalizedDashboard: React.FC = () => {
             >
               <Sparkles size={18} className="shortcut-icon icon-amber" />
               <span>AI Matches</span>
+            </button>
+            <button
+              className="shortcut-btn"
+              id="shortcut-btn-projects"
+              onClick={() => navigate('/projects')}
+            >
+              <Briefcase size={18} className="shortcut-icon icon-blue" />
+              <span>Project Marketplace</span>
             </button>
             <button
               className="shortcut-btn"
@@ -850,7 +1070,7 @@ export const PersonalizedDashboard: React.FC = () => {
                   <div className="widget-header">
                     <div className="widget-header-title">
                       <FolderGit2 size={20} className="widget-icon icon-blue" />
-                      <h2>Active Workspaces & Projects</h2>
+                      <h2>Active Workspaces & Tasks</h2>
                       <span className="badge-count" id="badge-workspace-count">
                         {dashboardData.activeWorkspaces?.length ?? 0}
                       </span>
@@ -941,7 +1161,152 @@ export const PersonalizedDashboard: React.FC = () => {
                 </section>
               )}
 
-              {/* WIDGET: AI MATCHES & RECOMMENDATIONS */}
+              {/* WIDGET: OPEN & APPLIED PROJECT SUMMARIES [T-029.4] */}
+              {isWidgetVisible('Projects') && (
+                <section
+                  className="dashboard-widget-card"
+                  id="widget-projects-section"
+                >
+                  <div className="widget-header">
+                    <div className="widget-header-title">
+                      <Briefcase size={20} className="widget-icon icon-teal" />
+                      <h2>Supervised & Applied Projects</h2>
+                      <span className="badge-count" id="badge-projects-count">
+                        {filteredProjects.length}
+                      </span>
+                    </div>
+
+                    {/* Filter Tabs */}
+                    <div className="deadline-filter-tabs" id="project-filter-tabs">
+                      <button
+                        className={`filter-tab ${projectFilter === 'all' ? 'active' : ''}`}
+                        id="filter-projects-all"
+                        onClick={() => setProjectFilter('all')}
+                      >
+                        All ({dashboardData.projectSummaries?.length ?? 0})
+                      </button>
+                      <button
+                        className={`filter-tab ${projectFilter === 'supervised' ? 'active' : ''}`}
+                        id="filter-projects-supervised"
+                        onClick={() => setProjectFilter('supervised')}
+                      >
+                        Supervising
+                      </button>
+                      <button
+                        className={`filter-tab ${projectFilter === 'applied' ? 'active' : ''}`}
+                        id="filter-projects-applied"
+                        onClick={() => setProjectFilter('applied')}
+                      >
+                        Applied
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="projects-summary-grid" id="dashboard-projects-grid">
+                    {filteredProjects.length === 0 ? (
+                      <div className="widget-empty-state" id="empty-state-projects">
+                        <Briefcase size={36} className="empty-icon text-muted" />
+                        <h4>No projects in this category</h4>
+                        <p>Post open positions or apply to collaborative projects in the marketplace.</p>
+                        <button
+                          className="btn-create-first"
+                          id="btn-empty-explore-projects"
+                          onClick={() => navigate('/projects')}
+                        >
+                          <PlusCircle size={16} /> Explore Project Marketplace
+                        </button>
+                      </div>
+                    ) : (
+                      filteredProjects.map((p) => {
+                        const isSupervisor = (p.role || (p as any).Role)?.toLowerCase() === 'supervisor';
+                        const status = p.status || (p as any).Status || 'Recruiting';
+
+                        return (
+                          <div
+                            key={p.projectId}
+                            className={`project-summary-card ${isSupervisor ? 'card-supervised' : 'card-applied'}`}
+                            id={`project-card-${p.projectId}`}
+                          >
+                            <div className="project-card-header">
+                              <div className="project-role-badge-row">
+                                <span
+                                  className={`project-role-tag ${isSupervisor ? 'role-supervisor' : 'role-applicant'}`}
+                                >
+                                  {isSupervisor ? 'Supervising' : 'My Application'}
+                                </span>
+                                <span
+                                  className={`project-status-tag status-${status.toLowerCase()}`}
+                                  id={`project-status-${p.projectId}`}
+                                >
+                                  {status}
+                                </span>
+                                {p.isFunded && (
+                                  <span className="funded-pill">
+                                    <DollarSign size={12} /> Funded
+                                  </span>
+                                )}
+                              </div>
+                              <span className="project-date-stamp">
+                                {formatTimeAgo(p.createdOrAppliedAt)}
+                              </span>
+                            </div>
+
+                            <h3 className="project-title">{p.title}</h3>
+                            <p className="project-desc">
+                              {p.description && p.description.length > 120
+                                ? `${p.description.substring(0, 120)}...`
+                                : p.description || 'Open collaborative research position.'}
+                            </p>
+
+                            <div className="project-meta-strip">
+                              {isSupervisor ? (
+                                <span className="meta-info-item">
+                                  <Users size={14} className="text-teal" />
+                                  <strong>{p.applicantsCount}</strong> Applicants &bull; {p.maxPositions} max positions
+                                </span>
+                              ) : (
+                                <span className="meta-info-item">
+                                  <GraduationCap size={14} className="text-blue" />
+                                  Supervisor: <strong>{p.supervisorName || 'Faculty Lead'}</strong>
+                                </span>
+                              )}
+                              {p.department && (
+                                <span className="meta-info-item">
+                                  <Building2 size={14} className="text-muted" />
+                                  {p.department}
+                                </span>
+                              )}
+                            </div>
+
+                            {p.requiredSkills && (
+                              <div className="project-skills-row">
+                                {p.requiredSkills.split(',').slice(0, 3).map((skill, sIdx) => (
+                                  <span key={sIdx} className="project-skill-pill">
+                                    {skill.trim()}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="project-card-footer">
+                              <button
+                                className="btn-project-action"
+                                id={`btn-project-view-${p.projectId}`}
+                                onClick={() => navigate('/projects')}
+                              >
+                                {isSupervisor ? 'Manage Positions' : 'View Application'}{' '}
+                                <ArrowRight size={14} />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                </section>
+              )}
+
+              {/* WIDGET: AI MATCHES & RECOMMENDATION SUMMARIES [T-029.4] */}
               {isWidgetVisible('Recommendations') && (
                 <section
                   className="dashboard-widget-card"
@@ -952,7 +1317,7 @@ export const PersonalizedDashboard: React.FC = () => {
                       <Sparkles size={20} className="widget-icon icon-amber" />
                       <h2>Top Recommended Collaborators & Projects</h2>
                       <span className="badge-count" id="badge-recommendations-count">
-                        {dashboardData.topRecommendations?.length ?? 0}
+                        {filteredRecommendations.length}
                       </span>
                     </div>
                     <button
@@ -964,11 +1329,65 @@ export const PersonalizedDashboard: React.FC = () => {
                     </button>
                   </div>
 
+                  {/* Recommendation Category Filters & Meta Summary Strip [T-029.4] */}
+                  <div className="rec-summary-ribbon">
+                    {dashboardData.recommendationSummary && (
+                      <div className="rec-summary-metrics-strip" id="rec-summary-metrics-strip">
+                        <span className="rec-metric-chip">
+                          <Sparkles size={13} className="text-amber" />
+                          <strong>{dashboardData.recommendationSummary.totalActiveCount}</strong> Active Matches
+                        </span>
+                        <span className="rec-metric-chip">
+                          <Flame size={13} className="text-rose" />
+                          <strong>{dashboardData.recommendationSummary.highConfidenceCount}</strong> High Confidence (&ge;85%)
+                        </span>
+                      </div>
+                    )}
+
+                    <div className="deadline-filter-tabs rec-category-tabs" id="rec-category-filter-tabs">
+                      <button
+                        className={`filter-tab ${recCategoryFilter === 'all' ? 'active' : ''}`}
+                        id="filter-rec-all"
+                        onClick={() => setRecCategoryFilter('all')}
+                      >
+                        All
+                      </button>
+                      <button
+                        className={`filter-tab ${recCategoryFilter === 'supervisor' ? 'active' : ''}`}
+                        id="filter-rec-supervisors"
+                        onClick={() => setRecCategoryFilter('supervisor')}
+                      >
+                        Supervisors ({dashboardData.recommendationSummary?.supervisorsCount ?? 0})
+                      </button>
+                      <button
+                        className={`filter-tab ${recCategoryFilter === 'teammate' ? 'active' : ''}`}
+                        id="filter-rec-teammates"
+                        onClick={() => setRecCategoryFilter('teammate')}
+                      >
+                        Teammates ({dashboardData.recommendationSummary?.teammatesCount ?? 0})
+                      </button>
+                      <button
+                        className={`filter-tab ${recCategoryFilter === 'project' ? 'active' : ''}`}
+                        id="filter-rec-projects"
+                        onClick={() => setRecCategoryFilter('project')}
+                      >
+                        Projects ({dashboardData.recommendationSummary?.projectsCount ?? 0})
+                      </button>
+                      <button
+                        className={`filter-tab ${recCategoryFilter === 'publication' ? 'active' : ''}`}
+                        id="filter-rec-publications"
+                        onClick={() => setRecCategoryFilter('publication')}
+                      >
+                        Papers ({dashboardData.recommendationSummary?.publicationsCount ?? 0})
+                      </button>
+                    </div>
+                  </div>
+
                   <div className="recommendations-preview-grid" id="dashboard-recommendations-grid">
-                    {!dashboardData.topRecommendations || dashboardData.topRecommendations.length === 0 ? (
+                    {filteredRecommendations.length === 0 ? (
                       <div className="widget-empty-state" id="empty-state-recommendations">
                         <Sparkles size={36} className="empty-icon text-muted" />
-                        <h4>Personalized matches are loading</h4>
+                        <h4>No recommendations in this category</h4>
                         <p>Explore recommendations based on shared research interests, skills, and affiliations.</p>
                         <button
                           className="btn-create-first"
@@ -979,7 +1398,7 @@ export const PersonalizedDashboard: React.FC = () => {
                         </button>
                       </div>
                     ) : (
-                      dashboardData.topRecommendations.map((rec) => (
+                      filteredRecommendations.map((rec) => (
                         <div
                           key={rec.id}
                           className="recommendation-preview-card"
@@ -989,8 +1408,22 @@ export const PersonalizedDashboard: React.FC = () => {
                             <span className={`rec-category-badge cat-${rec.category.toLowerCase()}`}>
                               {rec.category}
                             </span>
-                            <div className="rec-match-pill" id={`match-pill-${rec.id}`}>
-                              <Sparkles size={12} /> {rec.matchScore}% Match
+                            <div className="rec-top-actions">
+                              <div className="rec-match-pill" id={`match-pill-${rec.id}`}>
+                                <Sparkles size={12} /> {rec.matchScore}% Match
+                              </div>
+                              <button
+                                className="btn-dismiss-rec"
+                                id={`btn-dismiss-rec-${rec.id}`}
+                                title="Dismiss Recommendation"
+                                disabled={dismissingRecId === rec.id}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDismissRecommendation(rec.id);
+                                }}
+                              >
+                                <X size={14} />
+                              </button>
                             </div>
                           </div>
 
@@ -1002,7 +1435,7 @@ export const PersonalizedDashboard: React.FC = () => {
 
                           {rec.matchedTags && (
                             <div className="rec-tags-strip">
-                              {rec.matchedTags.split(',').map((tag, tIdx) => (
+                              {rec.matchedTags.split(',').slice(0, 4).map((tag, tIdx) => (
                                 <span key={tIdx} className="rec-tag-pill">
                                   {tag.trim()}
                                 </span>
@@ -1010,19 +1443,15 @@ export const PersonalizedDashboard: React.FC = () => {
                             </div>
                           )}
 
-                          <button
-                            className="btn-view-recommendation"
-                            id={`btn-view-rec-${rec.id}`}
-                            onClick={() => {
-                              if (rec.category.toLowerCase() === 'supervisor' || rec.category.toLowerCase() === 'teammate') {
-                                navigate(`/profile/${rec.targetEntityId}`);
-                              } else {
-                                navigate('/recommendations');
-                              }
-                            }}
-                          >
-                            View Match <ArrowRight size={14} />
-                          </button>
+                          <div className="rec-card-bottom-actions">
+                            <button
+                              className="btn-view-recommendation"
+                              id={`btn-view-rec-${rec.id}`}
+                              onClick={() => handleAcceptRecommendation(rec)}
+                            >
+                              Connect & View <ArrowRight size={14} />
+                            </button>
+                          </div>
                         </div>
                       ))
                     )}
@@ -1033,6 +1462,98 @@ export const PersonalizedDashboard: React.FC = () => {
 
             {/* RIGHT / SECONDARY COLUMN */}
             <div className="dashboard-secondary-column">
+              {/* WIDGET: RECENT NOTIFICATIONS & SYSTEM ALERTS [T-029.4] */}
+              {isWidgetVisible('Notifications') && (
+                <section
+                  className="dashboard-widget-card"
+                  id="widget-notifications-section"
+                >
+                  <div className="widget-header">
+                    <div className="widget-header-title">
+                      <Bell size={20} className="widget-icon icon-rose" />
+                      <h2>Recent Alerts & Notifications</h2>
+                      {dashboardData.metrics?.unreadNotificationsCount > 0 && (
+                        <span className="badge-count badge-count-unread" id="badge-notif-unread-count">
+                          {dashboardData.metrics.unreadNotificationsCount} Unread
+                        </span>
+                      )}
+                    </div>
+                    {dashboardData.metrics?.unreadNotificationsCount > 0 && (
+                      <button
+                        className="btn-mark-all-read"
+                        id="btn-mark-all-notifs-read"
+                        disabled={markingAllNotifs}
+                        onClick={handleMarkAllNotificationsRead}
+                        title="Mark all notifications as read"
+                      >
+                        <CheckCheck size={14} />
+                        <span>{markingAllNotifs ? 'Marking...' : 'Mark all read'}</span>
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="notifications-summary-list" id="dashboard-notifications-list">
+                    {!dashboardData.recentNotifications || dashboardData.recentNotifications.length === 0 ? (
+                      <div className="widget-empty-state" id="empty-state-notifications">
+                        <CheckCircle2 size={32} className="empty-icon text-green" />
+                        <p>No notifications yet. You're completely up to date!</p>
+                      </div>
+                    ) : (
+                      dashboardData.recentNotifications.map((notif) => (
+                        <div
+                          key={notif.notificationId}
+                          className={`notification-summary-row ${!notif.isRead ? 'row-unread' : ''}`}
+                          id={`notif-row-${notif.notificationId}`}
+                          onClick={() => {
+                            if (notif.actionUrl) navigate(notif.actionUrl);
+                            else navigate('/notifications');
+                          }}
+                        >
+                          <div className="notif-icon-bubble">
+                            {renderNotificationIcon(notif.type)}
+                          </div>
+
+                          <div className="notif-content-col">
+                            <div className="notif-header-line">
+                              {!notif.isRead && <span className="unread-dot-indicator" />}
+                              <span className="notif-type-tag">{notif.type || 'System'}</span>
+                              <span className="notif-time-ago">{formatTimeAgo(notif.createdAt)}</span>
+                            </div>
+                            <h4 className="notif-title">{notif.title}</h4>
+                            <p className="notif-message-text">{notif.message}</p>
+                          </div>
+
+                          {!notif.isRead && (
+                            <button
+                              className="btn-mark-single-read"
+                              id={`btn-mark-read-${notif.notificationId}`}
+                              title="Mark as read"
+                              disabled={markingNotificationId === notif.notificationId}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleMarkNotificationRead(notif.notificationId);
+                              }}
+                            >
+                              <Check size={14} />
+                            </button>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+
+                  <div className="widget-card-bottom-link">
+                    <button
+                      className="btn-view-all-notifications"
+                      id="btn-view-all-notifications-page"
+                      onClick={() => navigate('/notifications')}
+                    >
+                      View All Notifications <ArrowRight size={14} />
+                    </button>
+                  </div>
+                </section>
+              )}
+
               {/* WIDGET: TRENDING COMMUNITY DISCUSSIONS */}
               {isWidgetVisible('Community') && (
                 <section
@@ -1281,8 +1802,10 @@ export const PersonalizedDashboard: React.FC = () => {
                   <div className="prefs-list">
                     {[
                       { key: 'Deadlines', label: 'Imminent Deadlines & Timelines', desc: 'Upcoming tasks, milestones, conferences and CFPs' },
-                      { key: 'Workspaces', label: 'Active Workspaces & Projects', desc: 'Progress meters and next pending tasks in workspaces' },
-                      { key: 'Recommendations', label: 'AI Matches & Recommendations', desc: 'Smart recommendations for advisors, teammates, and papers' },
+                      { key: 'Workspaces', label: 'Active Workspaces & Tasks', desc: 'Task velocity and progress meters in workspaces' },
+                      { key: 'Projects', label: 'Supervised & Applied Projects', desc: 'Recruiting projects and candidate application summaries' },
+                      { key: 'Recommendations', label: 'AI Matches & Recommendations', desc: 'Smart matches for advisors, peers, papers and projects' },
+                      { key: 'Notifications', label: 'Recent Notifications & Alerts', desc: 'Unread mentions, collaboration invites, and updates' },
                       { key: 'Community', label: 'Community Discussions', desc: 'Trending academic discussions and calls for collaborators' },
                       { key: 'ActivityLog', label: 'Personal Activity Timeline', desc: 'Chronological research milestones and audit logs' }
                     ].map((widget) => {

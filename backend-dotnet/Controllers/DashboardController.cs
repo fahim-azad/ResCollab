@@ -218,23 +218,72 @@ namespace ResCollab.Api.Controllers
 
             deadlines = deadlines.OrderBy(d => d.DeadlineDate).Take(6).ToList();
 
-            // 5. AI Recommendations Preview
-            var topRecs = await _context.UserRecommendationRecords
-                .Where(r => r.UserId == userId && r.Status == "Active")
-                .OrderByDescending(r => r.MatchScore)
-                .Take(4)
+            // 4b. Project Summaries (Supervised Projects & User Applications) [T-029.4]
+            var supervisedProjects = await _context.OpenProjects
+                .Where(p => p.SupervisorId == userId)
+                .Include(p => p.Applications)
+                .OrderByDescending(p => p.CreatedAt)
+                .Take(5)
+                .Select(p => new ProjectSummaryDto
+                {
+                    ProjectId = p.Id,
+                    Title = p.Title,
+                    Description = p.Description,
+                    Department = p.Department,
+                    Role = "Supervisor",
+                    Status = p.Status,
+                    ApplicantsCount = p.Applications != null ? p.Applications.Count : 0,
+                    MaxPositions = p.MaxStudents,
+                    IsFunded = p.IsFunded,
+                    SupervisorName = user.FullName,
+                    RequiredSkills = p.RequiredSkills,
+                    CreatedOrAppliedAt = p.CreatedAt
+                })
                 .ToListAsync();
 
-            if (!topRecs.Any())
+            var appliedProjects = await _context.ProjectApplications
+                .Where(a => a.ApplicantId == userId)
+                .Include(a => a.Project)
+                    .ThenInclude(p => p!.Supervisor)
+                .OrderByDescending(a => a.AppliedAt)
+                .Take(5)
+                .Select(a => new ProjectSummaryDto
+                {
+                    ProjectId = a.ProjectId,
+                    Title = a.Project != null ? a.Project.Title : "Research Project",
+                    Description = a.Project != null ? a.Project.Description : a.CoverLetter,
+                    Department = a.Project != null ? a.Project.Department : null,
+                    Role = "Applicant",
+                    Status = a.Status,
+                    ApplicantsCount = 0,
+                    MaxPositions = a.Project != null ? a.Project.MaxStudents : 1,
+                    IsFunded = a.Project != null && a.Project.IsFunded,
+                    SupervisorName = a.Project != null && a.Project.Supervisor != null ? a.Project.Supervisor.FullName : "Project Lead",
+                    RequiredSkills = a.Project != null ? a.Project.RequiredSkills : null,
+                    CreatedOrAppliedAt = a.AppliedAt
+                })
+                .ToListAsync();
+
+            var combinedProjects = supervisedProjects.Concat(appliedProjects)
+                .OrderByDescending(p => p.CreatedOrAppliedAt)
+                .Take(6)
+                .ToList();
+
+            // 5. AI Recommendations Preview & Meta Summary [T-029.4]
+            var allActiveRecs = await _context.UserRecommendationRecords
+                .Where(r => r.UserId == userId && r.Status == "Active")
+                .OrderByDescending(r => r.MatchScore)
+                .ToListAsync();
+
+            if (!allActiveRecs.Any())
             {
                 // Trigger AI matching service to generate initial recommendations
                 try
                 {
                     var aiResult = await _aiMatchingService.GetAllRecommendationsAsync(userId);
-                    topRecs = await _context.UserRecommendationRecords
+                    allActiveRecs = await _context.UserRecommendationRecords
                         .Where(r => r.UserId == userId && r.Status == "Active")
                         .OrderByDescending(r => r.MatchScore)
-                        .Take(4)
                         .ToListAsync();
                 }
                 catch
@@ -242,6 +291,39 @@ namespace ResCollab.Api.Controllers
                     // Graceful fallback to empty recommendations list if AI matching is cold
                 }
             }
+
+            var recSummary = new RecommendationMetaSummaryDto
+            {
+                TotalActiveCount = allActiveRecs.Count,
+                HighConfidenceCount = allActiveRecs.Count(r => r.MatchScore >= 85),
+                SupervisorsCount = allActiveRecs.Count(r => r.Category.Equals("Supervisor", StringComparison.OrdinalIgnoreCase)),
+                TeammatesCount = allActiveRecs.Count(r => r.Category.Equals("Teammate", StringComparison.OrdinalIgnoreCase) || r.Category.Equals("Researcher", StringComparison.OrdinalIgnoreCase)),
+                ProjectsCount = allActiveRecs.Count(r => r.Category.Equals("Project", StringComparison.OrdinalIgnoreCase)),
+                PublicationsCount = allActiveRecs.Count(r => r.Category.Equals("Publication", StringComparison.OrdinalIgnoreCase))
+            };
+
+            var topRecs = allActiveRecs.Take(6).ToList();
+
+            // 5b. Recent Notifications & Alerts [T-029.4]
+            var recentNotifs = await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(6)
+                .Select(n => new NotificationSummaryDto
+                {
+                    NotificationId = n.Id,
+                    Title = n.Title,
+                    Message = n.Message,
+                    Type = n.Type,
+                    RelatedEntityId = n.RelatedEntityId,
+                    IsRead = n.IsRead,
+                    CreatedAt = n.CreatedAt,
+                    ActionUrl = n.Type == "Connection" ? "/network" :
+                                n.Type == "Project" ? "/projects" :
+                                n.Type == "Workspace" ? "/workspaces" :
+                                n.Type == "Idea" ? "/ideas" : "/notifications"
+                })
+                .ToListAsync();
 
             // 6. Recent Community Discussions
             var recentPosts = await _context.CommunityPosts
@@ -312,8 +394,11 @@ namespace ResCollab.Api.Controllers
                 ProfileCompletionPercentage = completionScore,
                 Metrics = metrics,
                 ActiveWorkspaces = activeWorkspaces,
+                ProjectSummaries = combinedProjects,
                 UpcomingDeadlines = deadlines,
                 TopRecommendations = topRecs,
+                RecommendationSummary = recSummary,
+                RecentNotifications = recentNotifs,
                 RecentDiscussions = recentPosts,
                 RecentActivities = activities
             };
@@ -475,11 +560,13 @@ namespace ResCollab.Api.Controllers
                 var defaults = new List<DashboardWidgetPreference>
                 {
                     new DashboardWidgetPreference { UserId = userId, WidgetKey = "Workspaces", IsVisible = true, DisplayOrder = 1 },
-                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Deadlines", IsVisible = true, DisplayOrder = 2 },
-                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Recommendations", IsVisible = true, DisplayOrder = 3 },
-                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Community", IsVisible = true, DisplayOrder = 4 },
-                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Bookmarks", IsVisible = true, DisplayOrder = 5 },
-                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "ActivityLog", IsVisible = true, DisplayOrder = 6 }
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Projects", IsVisible = true, DisplayOrder = 2 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Deadlines", IsVisible = true, DisplayOrder = 3 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Recommendations", IsVisible = true, DisplayOrder = 4 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Notifications", IsVisible = true, DisplayOrder = 5 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Community", IsVisible = true, DisplayOrder = 6 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "Bookmarks", IsVisible = true, DisplayOrder = 7 },
+                    new DashboardWidgetPreference { UserId = userId, WidgetKey = "ActivityLog", IsVisible = true, DisplayOrder = 8 }
                 };
 
                 _context.DashboardWidgetPreferences.AddRange(defaults);
@@ -582,6 +669,231 @@ namespace ResCollab.Api.Controllers
             await _context.SaveChangesAsync();
 
             return StatusCode(201, log);
+        }
+
+        // =========================================================================
+        // 6. DEDICATED PROJECT, RECOMMENDATION & NOTIFICATION ENDPOINTS [T-029.4]
+        // =========================================================================
+
+        [HttpGet("projects")]
+        public async Task<IActionResult> GetProjectSummaries()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var user = await _context.Users.FindAsync(userId);
+            var userName = user?.FullName ?? "Researcher";
+
+            var supervisedProjects = await _context.OpenProjects
+                .Where(p => p.SupervisorId == userId)
+                .Include(p => p.Applications)
+                .OrderByDescending(p => p.CreatedAt)
+                .Select(p => new ProjectSummaryDto
+                {
+                    ProjectId = p.Id,
+                    Title = p.Title,
+                    Description = p.Description,
+                    Department = p.Department,
+                    Role = "Supervisor",
+                    Status = p.Status,
+                    ApplicantsCount = p.Applications != null ? p.Applications.Count : 0,
+                    MaxPositions = p.MaxStudents,
+                    IsFunded = p.IsFunded,
+                    SupervisorName = userName,
+                    RequiredSkills = p.RequiredSkills,
+                    CreatedOrAppliedAt = p.CreatedAt
+                })
+                .ToListAsync();
+
+            var appliedProjects = await _context.ProjectApplications
+                .Where(a => a.ApplicantId == userId)
+                .Include(a => a.Project)
+                    .ThenInclude(p => p!.Supervisor)
+                .OrderByDescending(a => a.AppliedAt)
+                .Select(a => new ProjectSummaryDto
+                {
+                    ProjectId = a.ProjectId,
+                    Title = a.Project != null ? a.Project.Title : "Research Project",
+                    Description = a.Project != null ? a.Project.Description : a.CoverLetter,
+                    Department = a.Project != null ? a.Project.Department : null,
+                    Role = "Applicant",
+                    Status = a.Status,
+                    ApplicantsCount = 0,
+                    MaxPositions = a.Project != null ? a.Project.MaxStudents : 1,
+                    IsFunded = a.Project != null && a.Project.IsFunded,
+                    SupervisorName = a.Project != null && a.Project.Supervisor != null ? a.Project.Supervisor.FullName : "Project Lead",
+                    RequiredSkills = a.Project != null ? a.Project.RequiredSkills : null,
+                    CreatedOrAppliedAt = a.AppliedAt
+                })
+                .ToListAsync();
+
+            var combined = supervisedProjects.Concat(appliedProjects)
+                .OrderByDescending(p => p.CreatedOrAppliedAt)
+                .ToList();
+
+            return Ok(combined);
+        }
+
+        [HttpGet("recommendations")]
+        public async Task<IActionResult> GetRecommendationSummaries()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var activeRecs = await _context.UserRecommendationRecords
+                .Where(r => r.UserId == userId && r.Status == "Active")
+                .OrderByDescending(r => r.MatchScore)
+                .ToListAsync();
+
+            if (!activeRecs.Any())
+            {
+                try
+                {
+                    await _aiMatchingService.GetAllRecommendationsAsync(userId);
+                    activeRecs = await _context.UserRecommendationRecords
+                        .Where(r => r.UserId == userId && r.Status == "Active")
+                        .OrderByDescending(r => r.MatchScore)
+                        .ToListAsync();
+                }
+                catch { }
+            }
+
+            var summary = new RecommendationMetaSummaryDto
+            {
+                TotalActiveCount = activeRecs.Count,
+                HighConfidenceCount = activeRecs.Count(r => r.MatchScore >= 85),
+                SupervisorsCount = activeRecs.Count(r => r.Category.Equals("Supervisor", StringComparison.OrdinalIgnoreCase)),
+                TeammatesCount = activeRecs.Count(r => r.Category.Equals("Teammate", StringComparison.OrdinalIgnoreCase) || r.Category.Equals("Researcher", StringComparison.OrdinalIgnoreCase)),
+                ProjectsCount = activeRecs.Count(r => r.Category.Equals("Project", StringComparison.OrdinalIgnoreCase)),
+                PublicationsCount = activeRecs.Count(r => r.Category.Equals("Publication", StringComparison.OrdinalIgnoreCase))
+            };
+
+            return Ok(new
+            {
+                Summary = summary,
+                Recommendations = activeRecs
+            });
+        }
+
+        [HttpPost("recommendations/{id}/dismiss")]
+        public async Task<IActionResult> DismissRecommendation(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var rec = await _context.UserRecommendationRecords
+                .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+
+            if (rec == null)
+            {
+                return NotFound(new { message = "Recommendation not found." });
+            }
+
+            rec.Status = "Dismissed";
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Recommendation dismissed successfully." });
+        }
+
+        [HttpPost("recommendations/{id}/accept")]
+        public async Task<IActionResult> AcceptRecommendation(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var rec = await _context.UserRecommendationRecords
+                .FirstOrDefaultAsync(r => r.Id == id && r.UserId == userId);
+
+            if (rec == null)
+            {
+                return NotFound(new { message = "Recommendation not found." });
+            }
+
+            rec.Status = "Accepted";
+
+            // Log activity
+            _context.PersonalizedActivityLogs.Add(new PersonalizedActivityLog
+            {
+                UserId = userId,
+                ActivityType = "RecommendationAccepted",
+                Title = $"Connected with recommendation: {rec.Title}",
+                Description = $"Accepted {rec.Category} recommendation with {rec.MatchScore}% relevance match.",
+                TargetUrl = rec.Category == "Supervisor" || rec.Category == "Teammate" ? $"/profile/{rec.TargetEntityId}" : "/recommendations",
+                CreatedAt = DateTime.UtcNow
+            });
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Recommendation accepted successfully." });
+        }
+
+        [HttpGet("notifications")]
+        public async Task<IActionResult> GetNotificationSummaries([FromQuery] int limit = 10)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var notifs = await _context.Notifications
+                .Where(n => n.UserId == userId)
+                .OrderByDescending(n => n.CreatedAt)
+                .Take(Math.Max(1, Math.Min(30, limit)))
+                .Select(n => new NotificationSummaryDto
+                {
+                    NotificationId = n.Id,
+                    Title = n.Title,
+                    Message = n.Message,
+                    Type = n.Type,
+                    RelatedEntityId = n.RelatedEntityId,
+                    IsRead = n.IsRead,
+                    CreatedAt = n.CreatedAt,
+                    ActionUrl = n.Type == "Connection" ? "/network" :
+                                n.Type == "Project" ? "/projects" :
+                                n.Type == "Workspace" ? "/workspaces" :
+                                n.Type == "Idea" ? "/ideas" : "/notifications"
+                })
+                .ToListAsync();
+
+            return Ok(notifs);
+        }
+
+        [HttpPost("notifications/{id}/read")]
+        public async Task<IActionResult> MarkNotificationRead(int id)
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var notif = await _context.Notifications
+                .FirstOrDefaultAsync(n => n.Id == id && n.UserId == userId);
+
+            if (notif == null)
+            {
+                return NotFound(new { message = "Notification not found." });
+            }
+
+            notif.IsRead = true;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = "Notification marked as read." });
+        }
+
+        [HttpPost("notifications/read-all")]
+        public async Task<IActionResult> MarkAllNotificationsRead()
+        {
+            var userId = GetCurrentUserId();
+            if (userId <= 0) return Unauthorized();
+
+            var unread = await _context.Notifications
+                .Where(n => n.UserId == userId && !n.IsRead)
+                .ToListAsync();
+
+            foreach (var n in unread)
+            {
+                n.IsRead = true;
+            }
+
+            await _context.SaveChangesAsync();
+
+            return Ok(new { message = $"{unread.Count} notifications marked as read." });
         }
     }
 
