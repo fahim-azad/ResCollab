@@ -4,13 +4,21 @@ import {
   Sparkles, Users, BookOpen, FolderGit2, AlertCircle,
   GraduationCap, Building2, ExternalLink, RefreshCw,
   Search, CheckCircle2, UserCheck, ArrowRight,
-  UserPlus, XCircle, ChevronRight, Zap
+  UserPlus, XCircle, ChevronRight, Zap, SlidersHorizontal, Check
 } from 'lucide-react';
 import './RecommendationsHub.css';
 
 // ==========================================
 // INTERFACES & DTOs
 // ==========================================
+
+export interface RecommendationPreference {
+  interestWeight: number;
+  skillWeight: number;
+  institutionWeight: number;
+  activityWeight: number;
+  enabledCategories?: string;
+}
 
 export interface UserRecommendationItem {
   userId: number;
@@ -92,6 +100,16 @@ const RecommendationsHub: React.FC = () => {
   const [minScoreFilter, setMinScoreFilter] = useState<number>(0);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
+  // Preference tuning state
+  const [isPrefModalOpen, setIsPrefModalOpen] = useState<boolean>(false);
+  const [pref, setPref] = useState<RecommendationPreference>({
+    interestWeight: 0.35,
+    skillWeight: 0.30,
+    institutionWeight: 0.15,
+    activityWeight: 0.20
+  });
+  const [savingPref, setSavingPref] = useState<boolean>(false);
+
   // Skill Gap On-Demand query state
   const [customDomain, setCustomDomain] = useState<string>('');
   const [analyzingGap, setAnalyzingGap] = useState<boolean>(false);
@@ -102,6 +120,52 @@ const RecommendationsHub: React.FC = () => {
   const showToast = (msg: string) => {
     setToastMessage(msg);
     setTimeout(() => setToastMessage(null), 3500);
+  };
+
+  useEffect(() => {
+    const fetchPrefs = async () => {
+      try {
+        const res = await fetch('http://localhost:5000/api/recommendation/preferences', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const p = await res.json();
+          setPref({
+            interestWeight: p.interestWeight ?? 0.35,
+            skillWeight: p.skillWeight ?? 0.30,
+            institutionWeight: p.institutionWeight ?? 0.15,
+            activityWeight: p.activityWeight ?? 0.20,
+            enabledCategories: p.enabledCategories
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load recommendation preferences:', err);
+      }
+    };
+    fetchPrefs();
+  }, [token]);
+
+  const handleSavePreferences = async () => {
+    try {
+      setSavingPref(true);
+      const res = await fetch('http://localhost:5000/api/recommendation/preferences', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify(pref)
+      });
+      if (res.ok) {
+        showToast('✓ AI Matching criteria weights saved!');
+        setIsPrefModalOpen(false);
+        fetchAllRecommendations(true);
+      }
+    } catch {
+      showToast('Could not save preference weights.');
+    } finally {
+      setSavingPref(false);
+    }
   };
 
   const fetchAllRecommendations = useCallback(async (forceRefresh = false) => {
@@ -248,6 +312,13 @@ const RecommendationsHub: React.FC = () => {
         </div>
 
         <div className="recommendations-header-actions">
+          <button
+            id="btn-rec-preferences"
+            className="btn-pref-toggle"
+            onClick={() => setIsPrefModalOpen(true)}
+          >
+            <SlidersHorizontal size={16} /> Criteria Weights
+          </button>
           <button
             id="btn-rec-refresh"
             className="btn-refresh-rec"
@@ -664,6 +735,108 @@ const RecommendationsHub: React.FC = () => {
             </div>
           )}
         </>
+      )}
+
+      {/* Criteria Weights Tuning Modal */}
+      {isPrefModalOpen && (
+        <div className="modal-overlay animate-fade-in" id="modal-criteria-preferences">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '540px' }}>
+            <div className="modal-header">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: 0 }}>
+                <SlidersHorizontal size={22} color="#6366f1" />
+                Customize Matching Weights
+              </h2>
+              <button className="close-btn" onClick={() => setIsPrefModalOpen(false)}>✕</button>
+            </div>
+
+            <div style={{ padding: '1.2rem 0' }}>
+              <p style={{ color: '#64748b', fontSize: '0.92rem', margin: '0 0 1.5rem 0', lineHeight: 1.5 }}>
+                Fine-tune how the AI multi-dimensional vector algorithm prioritizes research interest overlap, technical skills, department affinity, and recent activity.
+              </p>
+
+              <div className="weight-slider-row">
+                <div className="weight-slider-header">
+                  <span>Research Interests Overlap</span>
+                  <strong>{Math.round(pref.interestWeight * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="80"
+                  step="5"
+                  value={Math.round(pref.interestWeight * 100)}
+                  onChange={e => setPref({ ...pref, interestWeight: parseInt(e.target.value) / 100 })}
+                  className="rec-slider"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="weight-slider-row" style={{ marginTop: '1.2rem' }}>
+                <div className="weight-slider-header">
+                  <span>Skill Compatibility & Synergy</span>
+                  <strong>{Math.round(pref.skillWeight * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="80"
+                  step="5"
+                  value={Math.round(pref.skillWeight * 100)}
+                  onChange={e => setPref({ ...pref, skillWeight: parseInt(e.target.value) / 100 })}
+                  className="rec-slider"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="weight-slider-row" style={{ marginTop: '1.2rem' }}>
+                <div className="weight-slider-header">
+                  <span>Institutional & Department Affinity</span>
+                  <strong>{Math.round(pref.institutionWeight * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="80"
+                  step="5"
+                  value={Math.round(pref.institutionWeight * 100)}
+                  onChange={e => setPref({ ...pref, institutionWeight: parseInt(e.target.value) / 100 })}
+                  className="rec-slider"
+                  style={{ width: '100%' }}
+                />
+              </div>
+
+              <div className="weight-slider-row" style={{ marginTop: '1.2rem' }}>
+                <div className="weight-slider-header">
+                  <span>Recent Activity & Student Availability</span>
+                  <strong>{Math.round(pref.activityWeight * 100)}%</strong>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="80"
+                  step="5"
+                  value={Math.round(pref.activityWeight * 100)}
+                  onChange={e => setPref({ ...pref, activityWeight: parseInt(e.target.value) / 100 })}
+                  className="rec-slider"
+                  style={{ width: '100%' }}
+                />
+              </div>
+            </div>
+
+            <div className="modal-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.8rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+              <button className="cancel-btn" onClick={() => setIsPrefModalOpen(false)}>Cancel</button>
+              <button
+                className="btn-refresh-rec"
+                onClick={handleSavePreferences}
+                disabled={savingPref}
+                style={{ padding: '0.65rem 1.4rem' }}
+              >
+                <Check size={16} />
+                {savingPref ? 'Applying Weights...' : 'Save & Re-Score'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* Toast Notice */}

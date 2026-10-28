@@ -673,3 +673,50 @@
   from { transform: translateY(100%); opacity: 0; }
   to { transform: translateY(0); opacity: 1; }
 }
+
+/* Preference Button and Modal Sliders */
+.btn-pref-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #ffffff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  border-radius: 12px;
+  padding: 0.75rem 1.2rem;
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.08);
+}
+
+.btn-pref-toggle:hover {
+  background: #eef2ff;
+  border-color: #a5b4fc;
+  transform: translateY(-1px);
+}
+
+.weight-slider-row {
+  background: #f8fafc;
+  padding: 1rem 1.2rem;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+}
+
+.weight-slider-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  font-size: 0.9rem;
+  color: #334155;
+  font-weight: 600;
+}
+
+.weight-slider-header strong {
+  color: #6366f1;
+  font-weight: 800;
+  font-size: 0.95rem;
+}
+
