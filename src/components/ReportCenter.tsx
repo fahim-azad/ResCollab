@@ -20,6 +20,7 @@ import {
   ArrowRight
 } from 'lucide-react';
 import './ReportCenter.css';
+import ModerationQueue from './ModerationQueue';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
@@ -92,8 +93,13 @@ const VIOLATION_REASONS: ReasonOption[] = [
 ];
 
 export const ReportCenter: React.FC = () => {
-  // Navigation Tabs: 'submit' | 'my-reports'
-  const [activeTab, setActiveTab] = useState<'submit' | 'my-reports'>('submit');
+  // Navigation Tabs: 'submit' | 'my-reports' | 'moderation'
+  const [activeTab, setActiveTab] = useState<'submit' | 'my-reports' | 'moderation'>('submit');
+
+  const userStr = localStorage.getItem('user');
+  const currentUser = useMemo(() => (userStr ? JSON.parse(userStr) : null), [userStr]);
+  const userRole = (currentUser?.role || currentUser?.userType || '').toLowerCase();
+  const isStaff = userRole === 'admin' || userRole === 'moderator' || userRole === 'institutionaladmin';
 
   // Submit Form States
   const [targetType, setTargetType] = useState<ReportTargetType>('CommunityPost');
@@ -322,6 +328,16 @@ export const ReportCenter: React.FC = () => {
           <Clock size={18} />
           <span>My Submitted Reports ({myReports.length})</span>
         </button>
+        {isStaff && (
+          <button
+            className={`report-tab-btn ${activeTab === 'moderation' ? 'active' : ''}`}
+            id="tab-moderation-queue"
+            onClick={() => setActiveTab('moderation')}
+          >
+            <ShieldCheck size={18} />
+            <span>Moderation Queue</span>
+          </button>
+        )}
       </div>
 
       {/* =========================================================================
@@ -651,6 +667,15 @@ export const ReportCenter: React.FC = () => {
               ))
             )}
           </div>
+        </section>
+      )}
+
+      {/* =========================================================================
+          4. TAB CONTENT: MODERATION QUEUE (STAFF ONLY)
+          ========================================================================= */}
+      {activeTab === 'moderation' && (
+        <section className="report-card-section" id="section-moderation-embed" style={{ padding: '0', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+          <ModerationQueue embedMode={true} />
         </section>
       )}
 
