@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Search, Filter, BookOpen, Database, Users, ExternalLink } from 'lucide-react';
+import { Search, Filter, BookOpen, Database, Users, ExternalLink, Calendar } from 'lucide-react';
 import './SearchPage.css';
 
 interface SearchResult {
@@ -21,7 +21,7 @@ const SearchPage: React.FC = () => {
   const [results, setResults] = useState<SearchResult[]>([]);
   const [error, setError] = useState<string | null>(null);
 
-  const filters = ['All', 'Papers', 'Datasets', 'Researchers'];
+  const filters = ['All', 'Papers', 'Datasets', 'Researchers', 'Events'];
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -49,6 +49,7 @@ const SearchPage: React.FC = () => {
       case 'paper': return <BookOpen size={18} />;
       case 'dataset': return <Database size={18} />;
       case 'researcher': return <Users size={18} />;
+      case 'event': return <Calendar size={18} />;
       default: return <BookOpen size={18} />;
     }
   };
@@ -58,6 +59,7 @@ const SearchPage: React.FC = () => {
       case 'paper': return 'var(--brand-navy)';
       case 'dataset': return 'var(--brand-cyan)';
       case 'researcher': return 'var(--brand-purple)';
+      case 'event': return '#4f46e5';
       default: return 'var(--brand-navy)';
     }
   };

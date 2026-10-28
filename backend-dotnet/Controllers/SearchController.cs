@@ -70,7 +70,36 @@ namespace ResCollab.Api.Controllers
                 results.Add(dto);
             }
 
-            // 2. Query External API (Crossref)
+            // 2. Query Academic Events
+            if (string.IsNullOrEmpty(filter) || filter.Equals("All", System.StringComparison.OrdinalIgnoreCase) || filter.Equals("Events", System.StringComparison.OrdinalIgnoreCase))
+            {
+                var eventQuery = _context.AcademicEvents.AsQueryable();
+                if (!string.IsNullOrEmpty(q))
+                {
+                    var lowerQ = q.ToLower();
+                    eventQuery = eventQuery.Where(e =>
+                        e.Title.ToLower().Contains(lowerQ) ||
+                        e.Organizer.ToLower().Contains(lowerQ) ||
+                        e.Description.ToLower().Contains(lowerQ) ||
+                        e.FieldOfStudy.ToLower().Contains(lowerQ));
+                }
+                var eventItems = await eventQuery.OrderBy(e => e.SubmissionDeadline ?? System.DateTime.MaxValue).Take(5).ToListAsync();
+                foreach (var ev in eventItems)
+                {
+                    results.Add(new SearchResultDto
+                    {
+                        Id = ev.Id.ToString(),
+                        Title = $"[{ev.EventType}] {ev.Title}",
+                        Type = "Event",
+                        Description = $"{ev.Organizer} · {ev.FieldOfStudy} · CFP Deadline: {(ev.SubmissionDeadline.HasValue ? ev.SubmissionDeadline.Value.ToString("yyyy-MM-dd") : "TBD")}",
+                        Url = $"/events",
+                        PublishedDate = ev.CreatedAt,
+                        Source = "Academic Events"
+                    });
+                }
+            }
+
+            // 3. Query External API (Crossref)
             if (!string.IsNullOrEmpty(q) && (string.IsNullOrEmpty(filter) || filter == "All" || filter == "Papers"))
             {
                 var externalResults = await _connector.SearchAsync(q, 10);

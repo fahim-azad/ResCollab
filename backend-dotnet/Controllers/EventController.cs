@@ -46,6 +46,7 @@ namespace ResCollab.Api.Controllers
             [FromQuery] string? search = null,
             [FromQuery] string? eventType = null,
             [FromQuery] string? fieldOfStudy = null,
+            [FromQuery] string? organizer = null,
             [FromQuery] bool? isVirtual = null,
             [FromQuery] bool? hasOpenCfp = null,
             [FromQuery] int? deadlineWithinDays = null,
@@ -80,6 +81,12 @@ namespace ResCollab.Api.Controllers
             if (!string.IsNullOrWhiteSpace(fieldOfStudy) && !fieldOfStudy.Equals("All", StringComparison.OrdinalIgnoreCase))
             {
                 query = query.Where(e => e.FieldOfStudy.ToLower().Contains(fieldOfStudy.ToLower()));
+            }
+
+            // Organizer filter
+            if (!string.IsNullOrWhiteSpace(organizer) && !organizer.Equals("All", StringComparison.OrdinalIgnoreCase))
+            {
+                query = query.Where(e => e.Organizer.ToLower().Contains(organizer.ToLower()));
             }
 
             // Virtual / In-Person filter
@@ -646,6 +653,13 @@ namespace ResCollab.Api.Controllers
                 .Take(12)
                 .ToListAsync();
 
+            var organizers = await _context.AcademicEvents
+                .GroupBy(e => e.Organizer)
+                .Select(g => new FacetItemDto { Name = g.Key, Count = g.Count() })
+                .OrderByDescending(f => f.Count)
+                .Take(10)
+                .ToListAsync();
+
             return Ok(new EventFacetsDto
             {
                 TotalEvents = totalEvents,
@@ -653,7 +667,8 @@ namespace ResCollab.Api.Controllers
                 OpenCfpCount = openCfpCount,
                 VirtualCount = virtualCount,
                 EventTypes = eventTypes,
-                FieldsOfStudy = fieldsOfStudy
+                FieldsOfStudy = fieldsOfStudy,
+                Organizers = organizers
             });
         }
 
@@ -809,6 +824,7 @@ namespace ResCollab.Api.Controllers
         public int VirtualCount { get; set; }
         public List<FacetItemDto> EventTypes { get; set; } = new List<FacetItemDto>();
         public List<FacetItemDto> FieldsOfStudy { get; set; } = new List<FacetItemDto>();
+        public List<FacetItemDto> Organizers { get; set; } = new List<FacetItemDto>();
     }
 
     public class FacetItemDto

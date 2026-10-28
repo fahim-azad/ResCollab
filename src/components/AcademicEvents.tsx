@@ -2,7 +2,8 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   Calendar, Search, Filter, Bookmark, Globe, MapPin, ExternalLink,
   Plus, X, RefreshCw, AlertCircle, Clock, CheckCircle2, ChevronRight,
-  Sparkles, Award, FileText, Video, Building2, Tag, Trash2, Edit3, Check
+  Sparkles, Award, FileText, Video, Building2, Tag, Trash2, Edit3, Check,
+  Download, ArrowUpDown
 } from 'lucide-react';
 import './AcademicEvents.css';
 
@@ -71,6 +72,7 @@ export interface EventFacets {
   virtualCount: number;
   eventTypes: { name: string; count: number }[];
   fieldsOfStudy: { name: string; count: number }[];
+  organizers?: { name: string; count: number }[];
 }
 
 export const EVENT_TYPES = [
@@ -81,6 +83,17 @@ export const EVENT_TYPES = [
   { id: 'Symposium', label: 'Symposia', icon: Building2 },
   { id: 'Seminar', label: 'Seminars & Webinars', icon: Video },
   { id: 'Competition', label: 'Competitions', icon: Award },
+];
+
+export const QUICK_SEARCH_TAGS = [
+  'Machine Learning',
+  'Computer Vision',
+  'Quantum Computing',
+  'Biomedical',
+  'AI Ethics',
+  'Robotics',
+  'IEEE',
+  'ACM'
 ];
 
 const AcademicEvents: React.FC = () => {
@@ -94,8 +107,9 @@ const AcademicEvents: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedType, setSelectedType] = useState<string>('All');
   const [selectedField, setSelectedField] = useState<string>('All');
+  const [selectedOrganizer, setSelectedOrganizer] = useState<string>('All');
   const [selectedMode, setSelectedMode] = useState<string>('all'); // 'all', 'virtual', 'in-person'
-  const [selectedDeadlineFilter, setSelectedDeadlineFilter] = useState<string>('all'); // 'all', 'open-cfp', '30-days', '60-days'
+  const [selectedDeadlineFilter, setSelectedDeadlineFilter] = useState<string>('all'); // 'all', 'open-cfp', 'critical', '30-days', '60-days', '90-days'
   const [sortBy, setSortBy] = useState<string>('deadline');
   const [showOnlyBookmarks, setShowOnlyBookmarks] = useState<boolean>(false);
 
@@ -159,15 +173,20 @@ const AcademicEvents: React.FC = () => {
       if (searchTerm.trim()) params.append('search', searchTerm.trim());
       if (selectedType && selectedType !== 'All') params.append('eventType', selectedType);
       if (selectedField && selectedField !== 'All') params.append('fieldOfStudy', selectedField);
+      if (selectedOrganizer && selectedOrganizer !== 'All') params.append('organizer', selectedOrganizer);
       if (selectedMode === 'virtual') params.append('isVirtual', 'true');
       if (selectedMode === 'in-person') params.append('isVirtual', 'false');
 
       if (selectedDeadlineFilter === 'open-cfp') {
         params.append('hasOpenCfp', 'true');
+      } else if (selectedDeadlineFilter === 'critical') {
+        params.append('deadlineWithinDays', '7');
       } else if (selectedDeadlineFilter === '30-days') {
         params.append('deadlineWithinDays', '30');
       } else if (selectedDeadlineFilter === '60-days') {
         params.append('deadlineWithinDays', '60');
+      } else if (selectedDeadlineFilter === '90-days') {
+        params.append('deadlineWithinDays', '90');
       }
 
       params.append('sort', sortBy);
@@ -189,7 +208,7 @@ const AcademicEvents: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [token, showOnlyBookmarks, searchTerm, selectedType, selectedField, selectedMode, selectedDeadlineFilter, sortBy, page]);
+  }, [token, showOnlyBookmarks, searchTerm, selectedType, selectedField, selectedOrganizer, selectedMode, selectedDeadlineFilter, sortBy, page]);
 
   // 2. Fetch Facets & Deadlines
   const fetchFacetsAndDeadlines = useCallback(async () => {
@@ -421,12 +440,55 @@ const AcademicEvents: React.FC = () => {
     setSelectedEventId(null);
   };
 
+  // 8. Download Calendar (.ics) file
+  const downloadIcsFile = (ev: AcademicEvent) => {
+    const formatDateForIcs = (dateStr: string) => {
+      const d = new Date(dateStr);
+      return d.toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    };
+
+    const start = ev.startDate ? formatDateForIcs(ev.startDate) : formatDateForIcs(new Date().toISOString());
+    const end = ev.endDate ? formatDateForIcs(ev.endDate) : start;
+    const now = formatDateForIcs(new Date().toISOString());
+
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'PRODID:-//ResCollab//Academic Events//EN',
+      'CALSCALE:GREGORIAN',
+      'METHOD:PUBLISH',
+      'BEGIN:VEVENT',
+      `UID:rescollab-event-${ev.id}@rescollab.org`,
+      `DTSTAMP:${now}`,
+      `DTSTART:${start}`,
+      `DTEND:${end}`,
+      `SUMMARY:${ev.title}`,
+      `DESCRIPTION:${(ev.description || '').replace(/\n/g, '\\n')} Organizer: ${ev.organizer}. CFP Deadline: ${ev.submissionDeadline ? new Date(ev.submissionDeadline).toLocaleDateString() : 'N/A'}`,
+      `LOCATION:${ev.isVirtual ? 'Virtual / Online Stream' : (ev.location || 'Venue TBD')}`,
+      `URL:${ev.websiteUrl || ''}`,
+      'STATUS:CONFIRMED',
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\r\n');
+
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `${ev.title.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30)}_event.ics`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    showToast('✓ Calendar (.ics) file exported to downloads!');
+  };
+
   // Helper: Format Date Range
   const formatDateRange = (start?: string | null, end?: string | null) => {
     if (!start && !end) return 'Date TBD';
     if (start && !end) return new Date(start).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
     if (!start && end) return `Concludes ${new Date(end).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}`;
-    
+
     const dStart = new Date(start!);
     const dEnd = new Date(end!);
     if (dStart.getFullYear() === dEnd.getFullYear() && dStart.getMonth() === dEnd.getMonth()) {
@@ -456,7 +518,7 @@ const AcademicEvents: React.FC = () => {
     if (daysRemaining === 0) {
       return (
         <span className="deadline-badge critical">
-          <AlertCircle size={12} /> CFP Ends Today!
+          <AlertCircle size={12} /> CFP Deadline Today!
         </span>
       );
     }
@@ -491,6 +553,22 @@ const AcademicEvents: React.FC = () => {
       </span>
     );
   };
+
+  // Helper: Calculate progress percentage for urgency meter
+  const getDeadlineProgressPercent = (daysRemaining?: number | null) => {
+    if (daysRemaining == null || daysRemaining < 0) return 100;
+    if (daysRemaining === 0) return 100;
+    if (daysRemaining > 60) return 20;
+    // Map 60 days down to 0 days -> 20% to 100%
+    return Math.min(100, Math.max(20, Math.round(100 - (daysRemaining / 60) * 80)));
+  };
+
+  const hasActiveFilters = searchTerm ||
+    selectedType !== 'All' ||
+    selectedField !== 'All' ||
+    selectedOrganizer !== 'All' ||
+    selectedMode !== 'all' ||
+    selectedDeadlineFilter !== 'all';
 
   return (
     <div className="academic-events-container" id="academic-events-page">
@@ -597,6 +675,10 @@ const AcademicEvents: React.FC = () => {
         {EVENT_TYPES.map(cat => {
           const Icon = cat.icon;
           const isActive = selectedType === cat.id;
+          const count = cat.id === 'All'
+            ? facets?.totalEvents
+            : facets?.eventTypes.find(t => t.name.toLowerCase() === cat.id.toLowerCase())?.count;
+
           return (
             <button
               key={cat.id}
@@ -609,6 +691,7 @@ const AcademicEvents: React.FC = () => {
             >
               <Icon size={16} />
               <span>{cat.label}</span>
+              {count != null && <span className="tab-count-badge">{count}</span>}
             </button>
           );
         })}
@@ -657,6 +740,25 @@ const AcademicEvents: React.FC = () => {
           </select>
         </div>
 
+        {/* Organizer Filter */}
+        <div className="filter-dropdown-wrapper">
+          <Building2 size={15} color="#64748b" />
+          <select
+            id="select-organizer-filter"
+            className="filter-select"
+            value={selectedOrganizer}
+            onChange={e => {
+              setSelectedOrganizer(e.target.value);
+              setPage(1);
+            }}
+          >
+            <option value="All">All Organizers</option>
+            {facets?.organizers?.map(o => (
+              <option key={o.name} value={o.name}>{o.name} ({o.count})</option>
+            ))}
+          </select>
+        </div>
+
         {/* Mode Filter: Virtual / In-Person */}
         <div className="filter-dropdown-wrapper">
           <Globe size={15} color="#64748b" />
@@ -689,14 +791,16 @@ const AcademicEvents: React.FC = () => {
           >
             <option value="all">All Deadlines</option>
             <option value="open-cfp">Open CFPs Only</option>
+            <option value="critical">Critical (&lt; 7 Days)</option>
             <option value="30-days">Deadlines in 30 Days</option>
             <option value="60-days">Deadlines in 60 Days</option>
+            <option value="90-days">Deadlines in 90 Days</option>
           </select>
         </div>
 
         {/* Sort Selector */}
         <div className="filter-dropdown-wrapper">
-          <Filter size={15} color="#64748b" />
+          <ArrowUpDown size={15} color="#64748b" />
           <select
             id="select-events-sort"
             className="filter-select"
@@ -712,25 +816,92 @@ const AcademicEvents: React.FC = () => {
             <option value="newest">Recently Posted</option>
           </select>
         </div>
+      </div>
 
-        {/* Clear Filters Button */}
-        {(searchTerm || selectedType !== 'All' || selectedField !== 'All' || selectedMode !== 'all' || selectedDeadlineFilter !== 'all') && (
+      {/* Quick Search Chips */}
+      <div className="quick-search-chips-row">
+        <span className="quick-search-label">Trending Topics:</span>
+        {QUICK_SEARCH_TAGS.map(tag => (
           <button
-            className="btn-clear-filters"
+            key={tag}
+            className={`quick-tag-btn ${searchTerm === tag ? 'active' : ''}`}
+            onClick={() => {
+              setSearchTerm(searchTerm === tag ? '' : tag);
+              setPage(1);
+            }}
+          >
+            #{tag}
+          </button>
+        ))}
+      </div>
+
+      {/* Active Filter Chips Strip */}
+      {hasActiveFilters && (
+        <div className="active-filters-strip" id="active-filters-summary">
+          <div className="active-filters-left">
+            <span className="active-filters-label">
+              <Filter size={14} /> Active Filters ({totalCount} results):
+            </span>
+
+            {searchTerm && (
+              <span className="active-filter-chip">
+                Search: "{searchTerm}"
+                <button onClick={() => setSearchTerm('')}><X size={12} /></button>
+              </span>
+            )}
+
+            {selectedType !== 'All' && (
+              <span className="active-filter-chip">
+                Type: {selectedType}
+                <button onClick={() => setSelectedType('All')}><X size={12} /></button>
+              </span>
+            )}
+
+            {selectedField !== 'All' && (
+              <span className="active-filter-chip">
+                Field: {selectedField}
+                <button onClick={() => setSelectedField('All')}><X size={12} /></button>
+              </span>
+            )}
+
+            {selectedOrganizer !== 'All' && (
+              <span className="active-filter-chip">
+                Organizer: {selectedOrganizer}
+                <button onClick={() => setSelectedOrganizer('All')}><X size={12} /></button>
+              </span>
+            )}
+
+            {selectedMode !== 'all' && (
+              <span className="active-filter-chip">
+                Mode: {selectedMode === 'virtual' ? 'Virtual' : 'In-Person'}
+                <button onClick={() => setSelectedMode('all')}><X size={12} /></button>
+              </span>
+            )}
+
+            {selectedDeadlineFilter !== 'all' && (
+              <span className="active-filter-chip">
+                Deadline: {selectedDeadlineFilter}
+                <button onClick={() => setSelectedDeadlineFilter('all')}><X size={12} /></button>
+              </span>
+            )}
+          </div>
+
+          <button
+            className="btn-clear-all-filters"
             onClick={() => {
               setSearchTerm('');
               setSelectedType('All');
               setSelectedField('All');
+              setSelectedOrganizer('All');
               setSelectedMode('all');
               setSelectedDeadlineFilter('all');
               setPage(1);
             }}
-            title="Reset all filters"
           >
-            <RefreshCw size={14} /> Clear
+            Reset All Filters
           </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* =========================================================================
           EVENTS CARDS GRID
@@ -759,6 +930,7 @@ const AcademicEvents: React.FC = () => {
                 setSearchTerm('');
                 setSelectedType('All');
                 setSelectedField('All');
+                setSelectedOrganizer('All');
                 setSelectedMode('all');
                 setSelectedDeadlineFilter('all');
               }
@@ -770,6 +942,8 @@ const AcademicEvents: React.FC = () => {
       ) : (
         <div className="events-grid" id="events-stream-grid">
           {events.map(ev => {
+            const progressPercent = getDeadlineProgressPercent(ev.daysRemainingForSubmission);
+
             return (
               <article key={ev.id} className="event-card" id={`event-card-${ev.id}`}>
                 {/* Card Top Pill Row */}
@@ -831,9 +1005,18 @@ const AcademicEvents: React.FC = () => {
                   </div>
                 </div>
 
-                {/* CFP Deadline Countdown Pill */}
+                {/* CFP Deadline Countdown Pill & Urgency Meter */}
                 <div className="card-deadline-row">
                   {renderDeadlinePill(ev.submissionDeadline, ev.daysRemainingForSubmission)}
+
+                  {ev.submissionDeadline && ev.daysRemainingForSubmission != null && ev.daysRemainingForSubmission >= 0 && (
+                    <div className="deadline-urgency-meter" title={`Proximity to cutoff: ${progressPercent}% elapsed`}>
+                      <div
+                        className={`meter-bar-fill ${ev.daysRemainingForSubmission <= 3 ? 'critical' : ev.daysRemainingForSubmission <= 7 ? 'urgent' : 'active'}`}
+                        style={{ width: `${progressPercent}%` }}
+                      />
+                    </div>
+                  )}
                 </div>
 
                 {/* Description Excerpt */}
@@ -843,19 +1026,33 @@ const AcademicEvents: React.FC = () => {
 
                 {/* Card Action Footer */}
                 <div className="card-footer-row">
-                  {ev.websiteUrl ? (
-                    <a
-                      href={ev.websiteUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="external-link-anchor"
-                      onClick={e => e.stopPropagation()}
+                  <div className="card-footer-left">
+                    {ev.websiteUrl ? (
+                      <a
+                        href={ev.websiteUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="external-link-anchor"
+                        onClick={e => e.stopPropagation()}
+                      >
+                        Portal <ExternalLink size={12} />
+                      </a>
+                    ) : (
+                      <span className="no-link-placeholder">Portal inside</span>
+                    )}
+
+                    <button
+                      className="btn-calendar-export"
+                      title="Add to Calendar (.ics download)"
+                      onClick={e => {
+                        e.stopPropagation();
+                        downloadIcsFile(ev);
+                      }}
                     >
-                      Official Portal <ExternalLink size={12} />
-                    </a>
-                  ) : (
-                    <span className="no-link-placeholder">Portal info inside</span>
-                  )}
+                      <Download size={13} />
+                      <span>.ics</span>
+                    </button>
+                  </div>
 
                   <button
                     id={`btn-view-event-${ev.id}`}
@@ -1015,6 +1212,13 @@ const AcademicEvents: React.FC = () => {
                       <CheckCircle2 size={16} /> Submit Paper / Register <ExternalLink size={13} />
                     </a>
                   )}
+
+                  <button
+                    className="btn-external-action calendar-export-cta"
+                    onClick={() => downloadIcsFile(eventDetail)}
+                  >
+                    <Download size={16} /> Export to Calendar (.ics)
+                  </button>
                 </div>
 
                 {/* Personal Notes & Bookmarks Section */}
