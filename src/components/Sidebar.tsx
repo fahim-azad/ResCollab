@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, ShieldAlert, ShieldCheck, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen, DollarSign, BarChart2, Sparkles, MessageCircle, Calendar } from 'lucide-react';
+import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, ShieldAlert, ShieldCheck, DownloadCloud, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen, DollarSign, BarChart2, Sparkles, MessageCircle, Calendar } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './DashboardLayout.css';
 
@@ -126,6 +126,9 @@ const Sidebar: React.FC = () => {
         </NavLink>
         <NavLink to="/moderation" id="nav-sidebar-moderation" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <ShieldCheck size={20} /> Moderation Queue
+        </NavLink>
+        <NavLink to="/data-import" id="nav-sidebar-data-import" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+          <DownloadCloud size={20} /> Data Import & Sources
         </NavLink>
         <NavLink to="/saved" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <Bookmark size={20} /> Saved
