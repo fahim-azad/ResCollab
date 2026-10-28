@@ -2,8 +2,9 @@ import React, { useEffect, useState, useCallback } from 'react';
 import {
   MessageSquare, Send, ThumbsUp, Sparkles, Pin, Share2, Tag,
   Trash2, Edit3, Search, RefreshCw, X, Check,
-  Globe, Building2, ChevronDown, ExternalLink, Image,
-  FileText, MessageCircle, HelpCircle, Flame, Plus
+  Globe, Building2, ChevronDown, ChevronUp, ExternalLink, Image,
+  FileText, MessageCircle, HelpCircle, Flame, Plus,
+  Heart, Copy, CornerDownRight
 } from 'lucide-react';
 import './CommunityFeed.css';
 
@@ -77,6 +78,21 @@ export const CATEGORIES = [
   { id: 'General', label: 'Scholarly Discourse', icon: MessageCircle },
 ];
 
+// Relative Time Helper
+const formatRelativeTime = (dateStr: string) => {
+  const d = new Date(dateStr);
+  const now = new Date();
+  const diffSec = Math.floor((now.getTime() - d.getTime()) / 1000);
+  if (diffSec < 60) return 'Just now';
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.floor(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDays = Math.floor(diffHour / 24);
+  if (diffDays < 7) return `${diffDays}d ago`;
+  return d.toLocaleDateString();
+};
+
 const CommunityFeed: React.FC = () => {
   const [posts, setPosts] = useState<CommunityPost[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -106,13 +122,24 @@ const CommunityFeed: React.FC = () => {
   const [editTags, setEditTags] = useState<string>('');
   const [submittingEdit, setSubmittingEdit] = useState<boolean>(false);
 
-  // Expanded Comments Drawer
+  // Expanded Comments Drawer & Threading State
   const [expandedPostId, setExpandedPostId] = useState<number | null>(null);
   const [commentsMap, setCommentsMap] = useState<Record<number, CommunityComment[]>>({});
   const [loadingComments, setLoadingComments] = useState<boolean>(false);
   const [newCommentText, setNewCommentText] = useState<string>('');
   const [replyingToCommentId, setReplyingToCommentId] = useState<number | null>(null);
   const [submittingComment, setSubmittingComment] = useState<boolean>(false);
+  const [commentSortMap, setCommentSortMap] = useState<Record<number, 'oldest' | 'newest'>>({});
+  const [collapsedRepliesMap, setCollapsedRepliesMap] = useState<Record<number, boolean>>({});
+  const [inlineReplyCommentId, setInlineReplyCommentId] = useState<number | null>(null);
+  const [inlineReplyText, setInlineReplyText] = useState<string>('');
+  const [likedCommentIds, setLikedCommentIds] = useState<Set<number>>(new Set());
+
+  // Share Post Modal State
+  const [sharingPost, setSharingPost] = useState<CommunityPost | null>(null);
+  const [shareNote, setShareNote] = useState<string>('');
+  const [submittingShare, setSubmittingShare] = useState<boolean>(false);
+  const [linkCopied, setLinkCopied] = useState<boolean>(false);
 
   // Reaction Popover active post id
   const [reactionPopoverPostId, setReactionPopoverPostId] = useState<number | null>(null);
@@ -310,7 +337,7 @@ const CommunityFeed: React.FC = () => {
     }
   };
 
-  // Toggle Reaction
+  // Toggle Reaction with sentiment
   const handleToggleReaction = async (postId: number, reactionType: string) => {
     setReactionPopoverPostId(null);
     try {
@@ -330,12 +357,13 @@ const CommunityFeed: React.FC = () => {
             return {
               ...p,
               hasUserReacted: data.hasReacted,
-              userReactionType: data.activeType,
+              userReactionType: data.reactionType,
               reactionsCount: data.reactionsCount
             };
           }
           return p;
         }));
+        showToast(data.hasReacted ? `✓ Expressed ${reactionType} feedback!` : 'Reaction removed.');
       }
     } catch {
       showToast('Failed to record reaction.');
@@ -347,11 +375,13 @@ const CommunityFeed: React.FC = () => {
     if (expandedPostId === postId) {
       setExpandedPostId(null);
       setReplyingToCommentId(null);
+      setInlineReplyCommentId(null);
       return;
     }
 
     setExpandedPostId(postId);
     setReplyingToCommentId(null);
+    setInlineReplyCommentId(null);
 
     try {
       setLoadingComments(true);
@@ -369,7 +399,7 @@ const CommunityFeed: React.FC = () => {
     }
   };
 
-  // Submit Comment / Reply
+  // Submit Top-Level Comment / Reply
   const handleAddComment = async (postId: number) => {
     if (!newCommentText.trim()) return;
 
@@ -392,11 +422,9 @@ const CommunityFeed: React.FC = () => {
         setNewCommentText('');
         setReplyingToCommentId(null);
 
-        // Update post comments list locally
         setCommentsMap(prev => {
           const currentList = prev[postId] || [];
           if (createdComment.parentCommentId) {
-            // Add as nested reply
             return {
               ...prev,
               [postId]: currentList.map(c => {
@@ -417,9 +445,8 @@ const CommunityFeed: React.FC = () => {
           }
         });
 
-        // Increment commentsCount on the post card
         setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p));
-        showToast('Comment posted.');
+        showToast('✓ Comment published to discussion.');
       }
     } catch {
       showToast('Failed to post reply.');
@@ -428,7 +455,87 @@ const CommunityFeed: React.FC = () => {
     }
   };
 
-  // Delete Comment
+  // Submit Inline Reply
+  const handleAddInlineReply = async (postId: number, parentCommentId: number) => {
+    if (!inlineReplyText.trim()) return;
+    try {
+      setSubmittingComment(true);
+      const res = await fetch(`http://localhost:5000/api/community/posts/${postId}/comments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          content: inlineReplyText.trim(),
+          parentCommentId
+        })
+      });
+      if (res.ok) {
+        const createdComment: CommunityComment = await res.json();
+        setInlineReplyText('');
+        setInlineReplyCommentId(null);
+        setCommentsMap(prev => {
+          const currentList = prev[postId] || [];
+          return {
+            ...prev,
+            [postId]: currentList.map(c => {
+              if (c.id === parentCommentId) {
+                return {
+                  ...c,
+                  replies: [...(c.replies || []), createdComment]
+                };
+              }
+              return c;
+            })
+          };
+        });
+        setPosts(prev => prev.map(p => p.id === postId ? { ...p, commentsCount: p.commentsCount + 1 } : p));
+        showToast('✓ Reply published to discussion!');
+      }
+    } catch {
+      showToast('Failed to post reply.');
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
+
+  // Upvote / Like Comment
+  const handleLikeComment = async (postId: number, commentId: number) => {
+    try {
+      const res = await fetch(`http://localhost:5000/api/community/comments/${commentId}/like`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setCommentsMap(prev => {
+          const list = prev[postId] || [];
+          return {
+            ...prev,
+            [postId]: list.map(c => {
+              if (c.id === commentId) {
+                return { ...c, likesCount: data.likesCount };
+              }
+              if (c.replies) {
+                return {
+                  ...c,
+                  replies: c.replies.map(r => r.id === commentId ? { ...r, likesCount: data.likesCount } : r)
+                };
+              }
+              return c;
+            })
+          };
+        });
+        setLikedCommentIds(prev => new Set(prev).add(commentId));
+        showToast('✓ Critique upvoted!');
+      }
+    } catch {
+      showToast('Failed to upvote critique.');
+    }
+  };
+
+  // Delete Comment / Reply
   const handleDeleteComment = async (postId: number, commentId: number) => {
     if (!window.confirm('Delete this comment?')) return;
     try {
@@ -455,6 +562,54 @@ const CommunityFeed: React.FC = () => {
     } catch {
       showToast('Could not delete comment.');
     }
+  };
+
+  // Submit Share Note
+  const handleShareSubmit = async () => {
+    if (!sharingPost) return;
+    try {
+      setSubmittingShare(true);
+      const res = await fetch(`http://localhost:5000/api/community/posts/${sharingPost.id}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ shareNote: shareNote.trim() || null })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setPosts(prev => prev.map(p => p.id === sharingPost.id ? { ...p, sharesCount: data.sharesCount } : p));
+        setSharingPost(null);
+        setShareNote('');
+        showToast('✓ Discussion broadcasted to your academic network!');
+      } else {
+        showToast('Could not share discussion.');
+      }
+    } catch {
+      showToast('Error sharing discussion.');
+    } finally {
+      setSubmittingShare(false);
+    }
+  };
+
+  // Get sorted comments for a post
+  const getSortedComments = (postId: number) => {
+    const list = commentsMap[postId] || [];
+    const sort = commentSortMap[postId] || 'oldest';
+    return [...list].sort((a, b) => {
+      const timeA = new Date(a.createdAt).getTime();
+      const timeB = new Date(b.createdAt).getTime();
+      return sort === 'newest' ? timeB - timeA : timeA - timeB;
+    });
+  };
+
+  // Toggle Collapse Replies
+  const toggleCollapseReplies = (commentId: number) => {
+    setCollapsedRepliesMap(prev => ({
+      ...prev,
+      [commentId]: !prev[commentId]
+    }));
   };
 
   return (
@@ -579,7 +734,7 @@ const CommunityFeed: React.FC = () => {
 
                 return (
                   <article key={post.id} className="post-card" id={`community-post-${post.id}`}>
-                    {/* Pinned Announcement Flag */}
+                    {/* Pinned Institutional Announcement Flag */}
                     {post.isPinned && (
                       <div className="pinned-post-flag">
                         <Pin size={13} /> Pinned Institutional Announcement
@@ -601,7 +756,9 @@ const CommunityFeed: React.FC = () => {
                             <span><Building2 size={13} /> {post.authorUniversity}</span>
                           )}
                           <span>·</span>
-                          <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+                          <span title={new Date(post.createdAt).toLocaleString()}>
+                            {formatRelativeTime(post.createdAt)}
+                          </span>
                         </div>
                       </div>
 
@@ -678,6 +835,18 @@ const CommunityFeed: React.FC = () => {
                       </div>
                     )}
 
+                    {/* Reaction Sentiment Cluster Breakdown */}
+                    {post.reactionsCount > 0 && (
+                      <div className="post-reactions-breakdown" id={`badge-reaction-${post.id}`}>
+                        <span className="reaction-cluster">
+                          {REACTION_TYPES.slice(0, Math.min(3, post.reactionsCount)).map((r, i) => (
+                            <span key={i} className="cluster-icon" style={{ zIndex: 3 - i }}>{r.icon}</span>
+                          ))}
+                        </span>
+                        <span className="reaction-cluster-count">{post.reactionsCount} peer reactions</span>
+                      </div>
+                    )}
+
                     {/* Post Footer Action Bar */}
                     <div className="post-action-bar">
                       <div className="action-buttons-group">
@@ -686,6 +855,7 @@ const CommunityFeed: React.FC = () => {
                           <button
                             id={`btn-react-${post.id}`}
                             className={`post-action-btn ${post.hasUserReacted ? 'active-reacted' : ''}`}
+                            style={post.hasUserReacted ? { color: REACTION_TYPES.find(r => r.type === post.userReactionType)?.color || '#4f46e5' } : {}}
                             onClick={() => {
                               if (post.hasUserReacted) {
                                 handleToggleReaction(post.id, post.userReactionType || 'Like');
@@ -693,36 +863,44 @@ const CommunityFeed: React.FC = () => {
                                 handleToggleReaction(post.id, 'Like');
                               }
                             }}
-                            onContextMenu={e => {
-                              e.preventDefault();
-                              setReactionPopoverPostId(reactionPopoverPostId === post.id ? null : post.id);
-                            }}
+                            title="Click to toggle reaction, or use dropdown to choose sentiment"
                           >
-                            <ThumbsUp size={16} />
-                            <span>
-                              {post.hasUserReacted ? `${post.userReactionType || 'Liked'}` : 'React'} ({post.reactionsCount})
+                            {post.hasUserReacted ? (
+                              <span className="active-reaction-icon">
+                                {REACTION_TYPES.find(r => r.type === post.userReactionType)?.icon || '👍'}
+                              </span>
+                            ) : (
+                              <ThumbsUp size={16} />
+                            )}
+                            <span className="reaction-label-count">
+                              {post.hasUserReacted
+                                ? `${REACTION_TYPES.find(r => r.type === post.userReactionType)?.label || 'Liked'} (${post.reactionsCount})`
+                                : `React (${post.reactionsCount})`}
                             </span>
                           </button>
 
-                          {/* Quick Reactions Popover Selector */}
+                          {/* Quick Reactions Popover Selector Trigger */}
                           <button
+                            id={`btn-react-dropdown-${post.id}`}
                             className="reaction-menu-trigger"
-                            title="Choose reaction"
+                            title="Choose reaction sentiment"
                             onClick={() => setReactionPopoverPostId(reactionPopoverPostId === post.id ? null : post.id)}
                           >
                             <ChevronDown size={14} />
                           </button>
 
                           {reactionPopoverPostId === post.id && (
-                            <div className="reactions-popover animate-fade-in">
+                            <div className="reactions-popover animate-fade-in" id={`reaction-popover-${post.id}`}>
                               {REACTION_TYPES.map(r => (
                                 <button
                                   key={r.type}
-                                  className="reaction-emoji-btn"
-                                  title={r.label}
+                                  id={`reaction-btn-${r.type.toLowerCase()}-${post.id}`}
+                                  className={`reaction-emoji-btn ${post.userReactionType === r.type ? 'current-selected' : ''}`}
+                                  title={`${r.label}: Express ${r.label.toLowerCase()} feedback`}
                                   onClick={() => handleToggleReaction(post.id, r.type)}
                                 >
-                                  <span>{r.icon}</span>
+                                  <span className="emoji-char">{r.icon}</span>
+                                  <span className="emoji-tooltip">{r.label}</span>
                                 </button>
                               ))}
                             </div>
@@ -740,17 +918,19 @@ const CommunityFeed: React.FC = () => {
                         </button>
                       </div>
 
+                      {/* Share Action */}
                       <div className="share-action">
                         <button
+                          id={`btn-share-post-${post.id}`}
                           className="post-action-btn"
-                          title="Share discussion"
+                          title="Share discussion with peers"
                           onClick={() => {
-                            navigator.clipboard.writeText(window.location.href);
-                            showToast('Discussion link copied to clipboard!');
+                            setSharingPost(post);
+                            setShareNote('');
                           }}
                         >
                           <Share2 size={16} />
-                          <span>Share</span>
+                          <span>Share ({post.sharesCount})</span>
                         </button>
                       </div>
                     </div>
@@ -760,8 +940,24 @@ const CommunityFeed: React.FC = () => {
                        ========================================================================= */}
                     {isExpanded && (
                       <div className="comments-section" id={`comments-section-${post.id}`}>
-                        <div className="comments-header-title">
-                          <h3>Discussion Replies & Peer Critiques</h3>
+                        {/* Comments Header Bar */}
+                        <div className="comments-header-bar">
+                          <div className="comments-header-title">
+                            <MessageSquare size={18} color="#4f46e5" />
+                            <h3>Discussion Replies & Peer Critiques ({post.commentsCount})</h3>
+                          </div>
+                          <div className="comments-sort-selector">
+                            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 600 }}>Order:</span>
+                            <select
+                              id={`select-comment-sort-${post.id}`}
+                              className="comment-sort-dropdown"
+                              value={commentSortMap[post.id] || 'oldest'}
+                              onChange={e => setCommentSortMap(prev => ({ ...prev, [post.id]: e.target.value as 'oldest' | 'newest' }))}
+                            >
+                              <option value="oldest">Oldest First</option>
+                              <option value="newest">Newest First</option>
+                            </select>
+                          </div>
                         </div>
 
                         {/* New Comment Input Box */}
@@ -772,26 +968,41 @@ const CommunityFeed: React.FC = () => {
                           <div className="composer-input-wrapper">
                             {replyingToCommentId && (
                               <div className="replying-banner">
-                                <span>Replying to peer comment #{replyingToCommentId}</span>
-                                <button onClick={() => setReplyingToCommentId(null)}><X size={13} /></button>
+                                <span>Replying to comment #{replyingToCommentId}</span>
+                                <button onClick={() => setReplyingToCommentId(null)} title="Cancel reply"><X size={13} /></button>
                               </div>
                             )}
                             <textarea
+                              id={`textarea-comment-${post.id}`}
                               className="comment-textarea"
                               rows={2}
-                              placeholder={replyingToCommentId ? 'Write your reply...' : 'Contribute your insight or critique...'}
+                              maxLength={2000}
+                              placeholder={replyingToCommentId ? 'Write your scholarly reply...' : 'Contribute your insight, methodology critique, or literature reference...'}
                               value={newCommentText}
                               onChange={e => setNewCommentText(e.target.value)}
                             />
-                            <div className="composer-actions">
-                              <button
-                                className="btn-submit-comment"
-                                disabled={submittingComment || !newCommentText.trim()}
-                                onClick={() => handleAddComment(post.id)}
-                              >
-                                <Send size={14} />
-                                {submittingComment ? 'Posting...' : 'Post Reply'}
-                              </button>
+                            <div className="composer-footer-row">
+                              <span className="char-counter">{newCommentText.length} / 2000 chars</span>
+                              <div className="composer-actions">
+                                {replyingToCommentId && (
+                                  <button
+                                    type="button"
+                                    className="btn-cancel-reply"
+                                    onClick={() => setReplyingToCommentId(null)}
+                                  >
+                                    Cancel
+                                  </button>
+                                )}
+                                <button
+                                  id={`btn-submit-comment-${post.id}`}
+                                  className="btn-submit-comment"
+                                  disabled={submittingComment || !newCommentText.trim()}
+                                  onClick={() => handleAddComment(post.id)}
+                                >
+                                  <Send size={14} />
+                                  {submittingComment ? 'Posting...' : 'Post Critique'}
+                                </button>
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -808,63 +1019,183 @@ const CommunityFeed: React.FC = () => {
                           </div>
                         ) : (
                           <div className="comments-thread-list">
-                            {comments.map(c => (
-                              <div key={c.id} className="comment-bubble" id={`comment-${c.id}`}>
-                                <div className="comment-header">
-                                  <div className="comment-author-avatar">{c.authorName.charAt(0)}</div>
-                                  <div className="comment-author-meta">
-                                    <span className="comment-author-name">{c.authorName}</span>
-                                    <span className="comment-author-role">{c.authorRole}</span>
-                                    <span className="comment-date">{new Date(c.createdAt).toLocaleDateString()}</span>
+                            {getSortedComments(post.id).map(c => {
+                              const isPostAuthor = c.authorId === post.authorId;
+                              const isLiked = likedCommentIds.has(c.id);
+                              const areRepliesCollapsed = !!collapsedRepliesMap[c.id];
+                              const hasReplies = c.replies && c.replies.length > 0;
+                              const isInlineReplying = inlineReplyCommentId === c.id;
+
+                              return (
+                                <div key={c.id} className="comment-bubble" id={`comment-${c.id}`}>
+                                  <div className="comment-header">
+                                    <div className="comment-author-avatar">{c.authorName.charAt(0)}</div>
+                                    <div className="comment-author-meta">
+                                      <div className="comment-author-line">
+                                        <span className="comment-author-name">{c.authorName}</span>
+                                        <span className="comment-author-role">{c.authorRole}</span>
+                                        {isPostAuthor && (
+                                          <span className="op-author-badge">Author</span>
+                                        )}
+                                      </div>
+                                      <div className="comment-submeta-line">
+                                        {c.authorUniversity && (
+                                          <span className="comment-univ"><Building2 size={11} /> {c.authorUniversity}</span>
+                                        )}
+                                        <span className="comment-date" title={new Date(c.createdAt).toLocaleString()}>
+                                          {formatRelativeTime(c.createdAt)}
+                                        </span>
+                                      </div>
+                                    </div>
+                                    {c.isAuthor && (
+                                      <button
+                                        id={`btn-delete-comment-${c.id}`}
+                                        className="btn-delete-comment"
+                                        title="Delete critique"
+                                        onClick={() => handleDeleteComment(post.id, c.id)}
+                                      >
+                                        <Trash2 size={13} />
+                                      </button>
+                                    )}
                                   </div>
-                                  {c.isAuthor && (
+
+                                  <div className="comment-body">{c.content}</div>
+
+                                  {/* Comment Footer Actions */}
+                                  <div className="comment-footer-actions">
+                                    {/* Like / Upvote Comment */}
                                     <button
-                                      className="btn-delete-comment"
-                                      title="Delete comment"
-                                      onClick={() => handleDeleteComment(post.id, c.id)}
+                                      id={`btn-like-comment-${c.id}`}
+                                      className={`btn-comment-action ${isLiked ? 'liked' : ''}`}
+                                      onClick={() => handleLikeComment(post.id, c.id)}
+                                      title="Upvote this critique"
                                     >
-                                      <Trash2 size={13} />
+                                      <Heart size={13} fill={isLiked ? '#ec4899' : 'none'} color={isLiked ? '#ec4899' : '#64748b'} />
+                                      <span>{c.likesCount || 0}</span>
                                     </button>
+
+                                    {/* Reply to Comment */}
+                                    <button
+                                      id={`btn-reply-comment-${c.id}`}
+                                      className="btn-comment-action btn-reply-trigger"
+                                      onClick={() => {
+                                        setInlineReplyCommentId(inlineReplyCommentId === c.id ? null : c.id);
+                                        setInlineReplyText(`@${c.authorName} `);
+                                      }}
+                                    >
+                                      <CornerDownRight size={13} />
+                                      <span>Reply</span>
+                                    </button>
+
+                                    {/* Collapse / Expand Replies */}
+                                    {hasReplies && (
+                                      <button
+                                        id={`btn-toggle-replies-${c.id}`}
+                                        className="btn-comment-action btn-collapse-replies"
+                                        onClick={() => toggleCollapseReplies(c.id)}
+                                      >
+                                        {areRepliesCollapsed ? (
+                                          <>
+                                            <ChevronDown size={13} />
+                                            <span>Show {c.replies!.length} {c.replies!.length === 1 ? 'reply' : 'replies'}</span>
+                                          </>
+                                        ) : (
+                                          <>
+                                            <ChevronUp size={13} />
+                                            <span>Hide {c.replies!.length} {c.replies!.length === 1 ? 'reply' : 'replies'}</span>
+                                          </>
+                                        )}
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {/* Dedicated Inline Reply Composer */}
+                                  {isInlineReplying && (
+                                    <div className="inline-reply-composer animate-fade-in" id={`inline-reply-box-${c.id}`}>
+                                      <textarea
+                                        id={`textarea-inline-reply-${c.id}`}
+                                        className="inline-reply-textarea"
+                                        rows={2}
+                                        value={inlineReplyText}
+                                        onChange={e => setInlineReplyText(e.target.value)}
+                                        placeholder={`Reply to ${c.authorName}...`}
+                                      />
+                                      <div className="inline-reply-actions">
+                                        <button
+                                          className="btn-cancel-inline"
+                                          onClick={() => setInlineReplyCommentId(null)}
+                                        >
+                                          Cancel
+                                        </button>
+                                        <button
+                                          id={`btn-send-inline-reply-${c.id}`}
+                                          className="btn-send-inline"
+                                          disabled={submittingComment || !inlineReplyText.trim()}
+                                          onClick={() => handleAddInlineReply(post.id, c.id)}
+                                        >
+                                          <Send size={13} />
+                                          Reply
+                                        </button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Nested Replies (Level 1) */}
+                                  {hasReplies && !areRepliesCollapsed && (
+                                    <div className="nested-replies-list">
+                                      {c.replies!.map(r => {
+                                        const isReplyPostAuthor = r.authorId === post.authorId;
+                                        const isReplyLiked = likedCommentIds.has(r.id);
+
+                                        return (
+                                          <div key={r.id} className="nested-reply-bubble" id={`reply-${r.id}`}>
+                                            <div className="comment-header">
+                                              <div className="comment-author-avatar mini-avatar">{r.authorName.charAt(0)}</div>
+                                              <div className="comment-author-meta">
+                                                <div className="comment-author-line">
+                                                  <span className="comment-author-name">{r.authorName}</span>
+                                                  <span className="comment-author-role">{r.authorRole}</span>
+                                                  {isReplyPostAuthor && (
+                                                    <span className="op-author-badge">Author</span>
+                                                  )}
+                                                </div>
+                                                <div className="comment-submeta-line">
+                                                  <span className="comment-date" title={new Date(r.createdAt).toLocaleString()}>
+                                                    {formatRelativeTime(r.createdAt)}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {r.isAuthor && (
+                                                <button
+                                                  id={`btn-delete-reply-${r.id}`}
+                                                  className="btn-delete-comment"
+                                                  title="Delete reply"
+                                                  onClick={() => handleDeleteComment(post.id, r.id)}
+                                                >
+                                                  <Trash2 size={12} />
+                                                </button>
+                                              )}
+                                            </div>
+                                            <div className="comment-body nested-body">{r.content}</div>
+                                            <div className="nested-reply-footer">
+                                              <button
+                                                id={`btn-like-reply-${r.id}`}
+                                                className={`btn-comment-action mini-action ${isReplyLiked ? 'liked' : ''}`}
+                                                onClick={() => handleLikeComment(post.id, r.id)}
+                                                title="Upvote reply"
+                                              >
+                                                <Heart size={12} fill={isReplyLiked ? '#ec4899' : 'none'} color={isReplyLiked ? '#ec4899' : '#64748b'} />
+                                                <span>{r.likesCount || 0}</span>
+                                              </button>
+                                            </div>
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   )}
                                 </div>
-                                <div className="comment-body">{c.content}</div>
-                                <div className="comment-footer-actions">
-                                  <button
-                                    className="btn-reply-link"
-                                    onClick={() => setReplyingToCommentId(c.id)}
-                                  >
-                                    Reply to comment
-                                  </button>
-                                </div>
-
-                                {/* Nested Replies (Level 1) */}
-                                {c.replies && c.replies.length > 0 && (
-                                  <div className="nested-replies-list">
-                                    {c.replies.map(r => (
-                                      <div key={r.id} className="nested-reply-bubble" id={`reply-${r.id}`}>
-                                        <div className="comment-header">
-                                          <div className="comment-author-avatar mini-avatar">{r.authorName.charAt(0)}</div>
-                                          <div className="comment-author-meta">
-                                            <span className="comment-author-name">{r.authorName}</span>
-                                            <span className="comment-author-role">{r.authorRole}</span>
-                                            <span className="comment-date">{new Date(r.createdAt).toLocaleDateString()}</span>
-                                          </div>
-                                          {r.isAuthor && (
-                                            <button
-                                              className="btn-delete-comment"
-                                              onClick={() => handleDeleteComment(post.id, r.id)}
-                                            >
-                                              <Trash2 size={12} />
-                                            </button>
-                                          )}
-                                        </div>
-                                        <div className="comment-body nested-body">{r.content}</div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            ))}
+                              );
+                            })}
                           </div>
                         )}
                       </div>
@@ -1123,6 +1454,84 @@ const CommunityFeed: React.FC = () => {
                 >
                   <Check size={16} />
                   {submittingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* =========================================================================
+          SHARE DISCUSSION MODAL
+         ========================================================================= */}
+      {sharingPost && (
+        <div className="modal-overlay animate-fade-in" id="modal-share-post">
+          <div className="modal-content animate-slide-up" style={{ maxWidth: '560px' }}>
+            <div className="modal-header">
+              <h2 style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: 0 }}>
+                <Share2 size={22} color="#4f46e5" />
+                Share Scholarly Discussion
+              </h2>
+              <button className="close-btn" onClick={() => setSharingPost(null)}>✕</button>
+            </div>
+
+            <div style={{ padding: '1.2rem 0 0 0' }}>
+              {/* Post Preview Snippet */}
+              <div className="share-preview-card">
+                <div className="share-preview-category">{sharingPost.category}</div>
+                <h4 className="share-preview-title">{sharingPost.title}</h4>
+                <p className="share-preview-author">By {sharingPost.authorName} ({sharingPost.authorRole})</p>
+              </div>
+
+              <div className="form-group" style={{ marginTop: '1.2rem' }}>
+                <label>Add a perspective or reflection note (Optional)</label>
+                <textarea
+                  id="input-share-note"
+                  className="neo-input"
+                  rows={3}
+                  placeholder="Why are you sharing this discussion with your research connections?"
+                  value={shareNote}
+                  onChange={e => setShareNote(e.target.value)}
+                />
+              </div>
+
+              {/* Direct Link Copy Row */}
+              <div className="share-link-row">
+                <input
+                  type="text"
+                  readOnly
+                  className="neo-input"
+                  value={`${window.location.origin}/community#post-${sharingPost.id}`}
+                  style={{ fontSize: '0.82rem', background: '#f8fafc' }}
+                />
+                <button
+                  type="button"
+                  className="btn-copy-link"
+                  onClick={() => {
+                    navigator.clipboard.writeText(`${window.location.origin}/community#post-${sharingPost.id}`);
+                    setLinkCopied(true);
+                    setTimeout(() => setLinkCopied(false), 2000);
+                    showToast('Link copied to clipboard!');
+                  }}
+                >
+                  {linkCopied ? <Check size={16} color="#10b981" /> : <Copy size={16} />}
+                  {linkCopied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+
+              <div className="modal-footer" style={{ borderTop: '1px solid #e2e8f0', paddingTop: '1rem', marginTop: '1.4rem', display: 'flex', justifyContent: 'flex-end', gap: '0.8rem' }}>
+                <button type="button" className="cancel-btn" onClick={() => setSharingPost(null)}>
+                  Cancel
+                </button>
+                <button
+                  id="btn-submit-share"
+                  type="button"
+                  className="btn-create-post-cta"
+                  disabled={submittingShare}
+                  onClick={handleShareSubmit}
+                >
+                  <Share2 size={16} />
+                  {submittingShare ? 'Sharing...' : 'Share Discussion'}
                 </button>
               </div>
             </div>

@@ -525,6 +525,25 @@ namespace ResCollab.Api.Controllers
         }
 
         // =========================================================================
+        // 7b. LIKE / UPVOTE COMMENT
+        // POST /api/community/comments/{commentId}/like
+        // =========================================================================
+        [HttpPost("comments/{commentId}/like")]
+        public async Task<IActionResult> LikeComment(int commentId)
+        {
+            var comment = await _context.CommunityComments.FirstOrDefaultAsync(c => c.Id == commentId);
+            if (comment == null)
+            {
+                return NotFound(new { message = $"Comment with ID {commentId} not found." });
+            }
+
+            comment.LikesCount += 1;
+            await _context.SaveChangesAsync();
+
+            return Ok(new { commentId, likesCount = comment.LikesCount });
+        }
+
+        // =========================================================================
         // 8. TOGGLE POST REACTION
         // POST /api/community/posts/{id}/react
         // =========================================================================
