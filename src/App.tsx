@@ -25,6 +25,7 @@ import ResearchAnalyticsDashboard from './components/ResearchAnalyticsDashboard'
 import RecommendationsHub from './components/RecommendationsHub';
 import CommunityFeed from './components/CommunityFeed';
 import AcademicEvents from './components/AcademicEvents';
+import PersonalizedDashboard from './components/PersonalizedDashboard';
 import './index.css';
 
 const App: React.FC = () => {
@@ -36,7 +37,8 @@ const App: React.FC = () => {
         <Route path="/register" element={<RegisterPage />} />
         <Route element={<ProtectedRoute />}>
           <Route element={<DashboardLayout />}>
-            <Route path="/home" element={<Navigate to="/profile" replace />} />
+            <Route path="/home" element={<PersonalizedDashboard />} />
+            <Route path="/dashboard" element={<PersonalizedDashboard />} />
             <Route path="/profile" element={<ProfilePage />} />
             <Route path="/profile/:userId" element={<ProfilePage />} />
             <Route path="/network" element={<NetworkPage />} />
