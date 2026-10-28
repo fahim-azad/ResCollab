@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen, DollarSign, BarChart2, Sparkles, MessageCircle, Calendar } from 'lucide-react';
+import { Home, Search, User, Folder, Bookmark, MessageSquare, Settings, LogOut, Users, UsersRound, Lightbulb, Shield, ShieldAlert, Globe, Bell, Handshake, GraduationCap, FlaskConical, Compass, BookOpen, DollarSign, BarChart2, Sparkles, MessageCircle, Calendar } from 'lucide-react';
 import logo from '../assets/ResCollab-logo.png';
 import './DashboardLayout.css';
 
@@ -120,6 +120,9 @@ const Sidebar: React.FC = () => {
         </NavLink>
         <NavLink to="/analytics" id="nav-sidebar-analytics" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <BarChart2 size={20} /> Analytics
+        </NavLink>
+        <NavLink to="/reports" id="nav-sidebar-reports" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
+          <ShieldAlert size={20} /> Integrity & Reports
         </NavLink>
         <NavLink to="/saved" className={({ isActive }) => (isActive ? 'nav-item active' : 'nav-item')}>
           <Bookmark size={20} /> Saved

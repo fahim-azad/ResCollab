@@ -26,6 +26,7 @@ import RecommendationsHub from './components/RecommendationsHub';
 import CommunityFeed from './components/CommunityFeed';
 import AcademicEvents from './components/AcademicEvents';
 import PersonalizedDashboard from './components/PersonalizedDashboard';
+import ReportCenter from './components/ReportCenter';
 import './index.css';
 
 const App: React.FC = () => {
@@ -63,6 +64,8 @@ const App: React.FC = () => {
             <Route path="/community" element={<CommunityFeed />} />
             <Route path="/events" element={<AcademicEvents />} />
             <Route path="/conferences" element={<AcademicEvents />} />
+            <Route path="/reports" element={<ReportCenter />} />
+            <Route path="/report" element={<ReportCenter />} />
           </Route>
         </Route>
       </Routes>

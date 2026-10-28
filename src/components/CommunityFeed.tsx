@@ -4,8 +4,9 @@ import {
   Trash2, Edit3, Search, RefreshCw, X, Check,
   Globe, Building2, ChevronDown, ChevronUp, ExternalLink, Image,
   FileText, MessageCircle, HelpCircle, Flame, Plus,
-  Heart, Copy, CornerDownRight
+  Heart, Copy, CornerDownRight, Flag
 } from 'lucide-react';
+import ReportSubmissionModal, { type ReportTargetType } from './ReportSubmissionModal';
 import './CommunityFeed.css';
 
 // ==========================================
@@ -143,6 +144,33 @@ const CommunityFeed: React.FC = () => {
 
   // Reaction Popover active post id
   const [reactionPopoverPostId, setReactionPopoverPostId] = useState<number | null>(null);
+
+  // Report Submission Modal State
+  const [reportModalOpen, setReportModalOpen] = useState<boolean>(false);
+  const [reportingTarget, setReportingTarget] = useState<{
+    targetType: ReportTargetType;
+    targetId: number;
+    targetTitle?: string;
+    reportedUserId?: number;
+    reportedUserName?: string;
+  } | null>(null);
+
+  const handleOpenReportModal = (
+    targetType: ReportTargetType,
+    targetId: number,
+    targetTitle?: string,
+    reportedUserId?: number,
+    reportedUserName?: string
+  ) => {
+    setReportingTarget({
+      targetType,
+      targetId,
+      targetTitle,
+      reportedUserId,
+      reportedUserName
+    });
+    setReportModalOpen(true);
+  };
 
   const token = localStorage.getItem('token');
   const userStr = localStorage.getItem('user');
@@ -933,6 +961,21 @@ const CommunityFeed: React.FC = () => {
                           <span>Share ({post.sharesCount})</span>
                         </button>
                       </div>
+
+                      {/* Report Post Action (for non-author) */}
+                      {!post.isAuthor && (
+                        <div className="report-action">
+                          <button
+                            id={`btn-report-post-${post.id}`}
+                            className="post-action-btn post-report-btn"
+                            title="Report post for academic integrity or community guidelines violation"
+                            onClick={() => handleOpenReportModal('CommunityPost', post.id, post.title, post.authorId, post.authorName)}
+                          >
+                            <Flag size={15} />
+                            <span>Report</span>
+                          </button>
+                        </div>
+                      )}
                     </div>
 
                     {/* =========================================================================
@@ -1086,6 +1129,19 @@ const CommunityFeed: React.FC = () => {
                                       <CornerDownRight size={13} />
                                       <span>Reply</span>
                                     </button>
+
+                                    {/* Report Comment */}
+                                    {!c.isAuthor && (
+                                      <button
+                                        id={`btn-report-comment-${c.id}`}
+                                        className="btn-comment-action"
+                                        title="Report comment for violations"
+                                        onClick={() => handleOpenReportModal('CommunityComment', c.id, c.content.slice(0, 40) + '...', c.authorId, c.authorName)}
+                                      >
+                                        <Flag size={12} />
+                                        <span>Report</span>
+                                      </button>
+                                    )}
 
                                     {/* Collapse / Expand Replies */}
                                     {hasReplies && (
@@ -1537,6 +1593,25 @@ const CommunityFeed: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Report Submission Modal */}
+      {reportingTarget && (
+        <ReportSubmissionModal
+          isOpen={reportModalOpen}
+          onClose={() => {
+            setReportModalOpen(false);
+            setReportingTarget(null);
+          }}
+          targetType={reportingTarget.targetType}
+          targetId={reportingTarget.targetId}
+          targetTitle={reportingTarget.targetTitle}
+          reportedUserId={reportingTarget.reportedUserId}
+          reportedUserName={reportingTarget.reportedUserName}
+          onSuccess={() => {
+            showToast('✓ Report submitted securely to research integrity panel.');
+          }}
+        />
       )}
 
       {/* Toast Notification */}
