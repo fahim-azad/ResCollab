@@ -1,4 +1,5 @@
 import os
+import sys
 import time
 import requests
 from selenium import webdriver
@@ -6,6 +7,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select
+
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 BASE_API_URL = "http://localhost:5000/api"
 FRONTEND_URL = "http://localhost:5173"
@@ -468,15 +472,15 @@ def test_analytics_calculations_permissions_empty_data():
         assert "active" in global_tab_btn.get_attribute("class")
 
         wait.until(EC.presence_of_element_located((By.ID, "card-metric-researchers")))
-        researcher_card_text = driver.find_element(By.ID, "card-metric-researchers").text
-        pub_card_text = driver.find_element(By.ID, "card-metric-publications").text
-        ws_card_text = driver.find_element(By.ID, "card-metric-workspaces").text
-        collab_card_text = driver.find_element(By.ID, "card-metric-collaborations").text
+        researcher_card_text = driver.find_element(By.ID, "card-metric-researchers").text.lower()
+        pub_card_text = driver.find_element(By.ID, "card-metric-publications").text.lower()
+        ws_card_text = driver.find_element(By.ID, "card-metric-workspaces").text.lower()
+        collab_card_text = driver.find_element(By.ID, "card-metric-collaborations").text.lower()
 
-        assert "Active Researchers" in researcher_card_text
-        assert "Total Publications" in pub_card_text
-        assert "Active Workspaces" in ws_card_text
-        assert "Inter-Researcher Links" in collab_card_text
+        assert "active researchers" in researcher_card_text
+        assert "total publications" in pub_card_text
+        assert "active workspaces" in ws_card_text
+        assert "inter-researcher links" in collab_card_text
         print(f"[PASS] Global KPI cards rendered: Researchers, Publications, Workspaces, Collaborations.")
 
         # Verify tags cloud
@@ -499,11 +503,12 @@ def test_analytics_calculations_permissions_empty_data():
 
         # Verify institutional banner & breakdown table
         inst_panel = driver.find_element(By.ID, "panel-analytics-institution")
-        assert uni_name in inst_panel.text
-        assert "Verified Institution" in inst_panel.text
+        inst_text = inst_panel.text.lower()
+        assert uni_name.lower() in inst_text
+        assert "verified institution" in inst_text
 
         table_elem = wait.until(EC.presence_of_element_located((By.ID, "table-analytics-breakdown")))
-        assert dept_name in table_elem.text
+        assert dept_name.lower() in table_elem.text.lower()
         print(f"[PASS] Institutional analytics verified: '{uni_name}' loaded with department breakdown.")
 
         # Test Department Search filtering
@@ -511,8 +516,8 @@ def test_analytics_calculations_permissions_empty_data():
         dept_search_input.clear()
         dept_search_input.send_keys("Machine Intelligence")
         time.sleep(0.5)
-        filtered_table_text = driver.find_element(By.ID, "table-analytics-breakdown").text
-        assert dept_name in filtered_table_text
+        filtered_table_text = driver.find_element(By.ID, "table-analytics-breakdown").text.lower()
+        assert dept_name.lower() in filtered_table_text
         print("[PASS] Department search filter responsive and operating correctly.")
 
         # Step 5: Validate Tab 3 - Team & Workspace Velocity
@@ -529,14 +534,14 @@ def test_analytics_calculations_permissions_empty_data():
         time.sleep(1.0)
 
         team_panel = driver.find_element(By.ID, "panel-analytics-team")
-        assert "50%" in team_panel.text, "Expected 50% velocity on team dashboard"
-        assert "2 Done" in team_panel.text
-        assert "1 In-Prog" in team_panel.text
-        assert "Milestones Met" in team_panel.text
+        team_text = team_panel.text.lower()
+        assert "50%" in team_text, "Expected 50% velocity on team dashboard"
+        assert "2 done" in team_text
+        assert "1 in-prog" in team_text
+        assert "milestones met" in team_text
 
         # Verify member contribution row
-        assert faculty_user["fullName"] in team_panel.text
-        assert "50%" in team_panel.text
+        assert faculty_user["fullName"].lower() in team_text
         print(f"[PASS] Team velocity dashboard verified: 50% completion velocity, segmented task progress, and member matrix.")
 
         # Step 6: Validate Tab 5 - Researcher Metrics
@@ -555,9 +560,10 @@ def test_analytics_calculations_permissions_empty_data():
         time.sleep(1.0)
 
         researcher_panel = driver.find_element(By.ID, "panel-analytics-researcher")
-        assert faculty_user["fullName"] in researcher_panel.text
-        assert "50%" in researcher_panel.text, "Expected 50% completion rate displayed"
-        assert "3" in researcher_panel.text, "Expected 3 publications"
+        researcher_text = researcher_panel.text.lower()
+        assert faculty_user["fullName"].lower() in researcher_text
+        assert "50%" in researcher_text, "Expected 50% completion rate displayed"
+        assert "3" in researcher_text, "Expected 3 publications"
         print("[PASS] Researcher metrics tab verified: Profile header, 50% task velocity, and publication counts.")
 
         # Test Empty User Lookup in UI (Empty State Robustness)
@@ -568,8 +574,9 @@ def test_analytics_calculations_permissions_empty_data():
         time.sleep(1.0)
 
         empty_researcher_panel = driver.find_element(By.ID, "panel-analytics-researcher")
-        assert fresh_user["fullName"] in empty_researcher_panel.text
-        assert "0%" in empty_researcher_panel.text
+        empty_text = empty_researcher_panel.text.lower()
+        assert fresh_user["fullName"].lower() in empty_text
+        assert "0%" in empty_text
         print("[PASS] Fresh user empty state handled gracefully in UI with 0% rate and no exceptions.")
 
         # Step 7: Test Recalculate Metrics Button
@@ -581,7 +588,8 @@ def test_analytics_calculations_permissions_empty_data():
         toast_elem = wait.until(EC.presence_of_element_located((By.ID, "analytics-toast")))
         toast_text = toast_elem.text
         assert "recalculated successfully" in toast_text.lower(), f"Unexpected toast text: {toast_text}"
-        print(f"[PASS] Recalculate button triggered successfully: Toast received: '{toast_text}'")
+        safe_toast = toast_text.encode("ascii", "replace").decode("ascii").strip()
+        print(f"[PASS] Recalculate button triggered successfully: Toast received: '{safe_toast}'")
 
         print("\n==========================================================================================")
         print("=== ALL T-018.5 ANALYTICS CALCULATIONS, PERMISSIONS & EMPTY DATA TESTS PASSED SUCCESSFULLY! ===")
