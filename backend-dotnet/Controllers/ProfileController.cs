@@ -49,6 +49,7 @@ namespace ResCollab.Api.Controllers
                 country = user.Profile?.Country ?? "",
                 skills = string.IsNullOrEmpty(user.Profile?.Skills) ? new string[0] : user.Profile.Skills.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
                 interests = string.IsNullOrEmpty(user.Profile?.Interests) ? new string[0] : user.Profile.Interests.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
+                isAcceptingStudents = user.Profile?.IsAcceptingStudents ?? true,
                 publications = new object[0],
                 projects = new object[0]
             });
@@ -74,6 +75,7 @@ namespace ResCollab.Api.Controllers
                 country = user.Profile?.Country ?? "",
                 skills = string.IsNullOrEmpty(user.Profile?.Skills) ? new string[0] : user.Profile.Skills.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
                 interests = string.IsNullOrEmpty(user.Profile?.Interests) ? new string[0] : user.Profile.Interests.Split(',', System.StringSplitOptions.TrimEntries | System.StringSplitOptions.RemoveEmptyEntries),
+                isAcceptingStudents = user.Profile?.IsAcceptingStudents ?? true,
                 email = user.Email,
                 publications = new object[0],
                 projects = new object[0]
@@ -88,6 +90,7 @@ namespace ResCollab.Api.Controllers
             public string? Country { get; set; }
             public string? Skills { get; set; }
             public string? Interests { get; set; }
+            public bool? IsAcceptingStudents { get; set; }
         }
 
         [HttpPut]
@@ -112,6 +115,7 @@ namespace ResCollab.Api.Controllers
             if (req.Country != null) user.Profile.Country = req.Country;
             if (req.Skills != null) user.Profile.Skills = req.Skills;
             if (req.Interests != null) user.Profile.Interests = req.Interests;
+            if (req.IsAcceptingStudents.HasValue) user.Profile.IsAcceptingStudents = req.IsAcceptingStudents.Value;
 
             await _context.SaveChangesAsync();
 

@@ -361,7 +361,10 @@ namespace ResCollab.Api.Services
             foreach (var pub in publications)
             {
                 var titleTokens = ParseTokens(pub.Title);
-                var matched = queryTokens.Intersect(titleTokens, StringComparer.OrdinalIgnoreCase).ToList();
+                var matched = queryTokens
+                    .Where(q => titleTokens.Contains(q, StringComparer.OrdinalIgnoreCase) ||
+                                pub.Title.Contains(q, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
 
                 double overlapRatio = queryTokens.Count > 0 ? (double)matched.Count / Math.Min(4, queryTokens.Count) : 0.2;
                 int yearDecay = Math.Max(0, DateTime.UtcNow.Year - pub.PublicationYear);
